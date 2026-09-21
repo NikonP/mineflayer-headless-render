@@ -345,6 +345,15 @@ function loadEntityTexture(texPath) {
 // drawn. Vanilla picks a layer via query.is_sheared, which we don't have.
 const extraGeometryKeys = { sheep: ['sheared'] }
 
+// Some models' static bind pose is not usable on its own: it is corrected by an
+// always-on base-pose animation, which this renderer does not run. Nudge the
+// listed bones' cubes by a model-space offset that reproduces that animation.
+// The enderman authors its head cube 14 units below the body and lifts it with
+// animation.enderman.base_pose; its hat cube already sits at the lifted height.
+const staticPoseOffset = {
+  enderman: { head: [0, 14, 0] }
+}
+
 // Some entity defs key their textures by variant/profession with no "default"
 // (cat, fox, horse, llama, ...). mineflayer doesn't expose the variant, so pick
 // one deterministically: prefer "default", else the first key as authored. Any
@@ -407,6 +416,7 @@ function buildEntityModel(name) {
   const texture = loadEntityTexture(texPath)
   if (!texture) return null
 
+  const poseOffset = staticPoseOffset[base] || staticPoseOffset[name]
   const positions = []
   const uvs = []
   const indices = []
@@ -415,20 +425,41 @@ function buildEntityModel(name) {
   for (const { geometry } of layers) {
     const texW = geometry.texturewidth || 64
     const texH = geometry.textureheight || 64
+    const boneByName = new Map()
+    for (const b of geometry.bones) boneByName.set(b.name.toLowerCase(), b)
 
     for (const bone of geometry.bones) {
       if (bone.neverRender || !bone.cubes) continue
-      // bind-pose / static rotations apply to this bone's own cubes only;
-      // cube pivots in these models are already laid out for the final pose,
-      // so children do not inherit the rotation (matches how the flat static
-      // geometry is authored)
+      const off = poseOffset && poseOffset[bone.name]
       const pivot = bone.pivot || [0, 0, 0]
-      const boneEuler = bone.bind_pose_rotation
+      // Two different rotation fields, two different meanings:
+      // - bind_pose_rotation reorients a bone's own cubes; descendants are
+      //   authored in the final pose, so it must NOT propagate (a quadruped's
+      //   body carries [90,0,0] and its head/legs are already placed for it).
+      // - rotation is the bone's rest orientation and descendants are authored
+      //   relative to it, so it DOES propagate (the horse's neck tilts 30 deg
+      //   and its head/muzzle must follow, or they float off the neck).
+      const bindEuler = bone.bind_pose_rotation
         ? eulerFromDegrees(bone.bind_pose_rotation)
-        : bone.rotation && typeof bone.rotation[0] === 'number'
-          ? eulerFromDegrees(bone.rotation)
-          : null
-      const boneMat = boneEuler ? matFromEuler(boneEuler) : null
+        : null
+      const bindMat = bindEuler ? matFromEuler(bindEuler) : null
+      // `rotation` chain from this bone up to the root, applied innermost-first.
+      const chain = []
+      for (let cur = bone; cur;) {
+        if (
+          !cur.bind_pose_rotation &&
+          cur.rotation &&
+          typeof cur.rotation[0] === 'number'
+        ) {
+          chain.push({
+            mat: matFromEuler(eulerFromDegrees(cur.rotation)),
+            pivot: cur.pivot || [0, 0, 0]
+          })
+        }
+        const parent = cur.parent && boneByName.get(cur.parent.toLowerCase())
+        if (!parent || parent === cur) break
+        cur = parent
+      }
       for (const cube of bone.cubes) {
         // cubes without a uv (leash_knot, tripod_camera) are drawn through a
         // render controller/material, not the texture sheet — skip them
@@ -462,17 +493,29 @@ function buildEntityModel(name) {
               cube.origin[2] +
               pos[2] * cube.size[2] +
               (pos[2] ? inflate : -inflate)
+            if (off) {
+              x += off[0]
+              y += off[1]
+              z += off[2]
+            }
             if (cubeMat) {
               rotateAround(cubeMat, cubePivot, x, y, z, tmp)
               x = tmp[0]
               y = tmp[1]
               z = tmp[2]
             }
-            if (boneMat) {
-              rotateAround(boneMat, pivot, x, y, z, tmp)
+            if (bindMat) {
+              rotateAround(bindMat, pivot, x, y, z, tmp)
               x = tmp[0]
               y = tmp[1]
               z = tmp[2]
+            } else {
+              for (const step of chain) {
+                rotateAround(step.mat, step.pivot, x, y, z, tmp)
+                x = tmp[0]
+                y = tmp[1]
+                z = tmp[2]
+              }
             }
             // mirror x, scale to block units
             positions.push(-x / 16, y / 16, z / 16)

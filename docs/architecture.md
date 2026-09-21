@@ -85,13 +85,18 @@ cached, and invalidated on block changes and chunk unloads.
 ## Entities
 
 - Mobs and the player use original **Bedrock** geometry, entity definitions and
-  textures from `bedrock-samples`. Only the static bind pose is applied; bone
-  rotations affect a bone's own cubes but do not propagate to children, matching
-  how the flat geometry is authored. Derived geometries
-  (`geometry.child:geometry.parent`) inherit the parent's bones, so a model that
-  only lists its additions (the witch hat on top of the villager) renders with a
-  body. Variant-only models (tropical fish, horse, cat, …) get one deterministic
-  variant.
+  textures from `bedrock-samples`. Only the static bind pose is applied. Two
+  rotation fields mean two things: `bind_pose_rotation` reorients a bone's own
+  cubes only (a quadruped's body carries `[90,0,0]` and its head/legs are
+  authored already placed for it), while `rotation` is a rest orientation whose
+  descendants are authored relative to it, so it propagates down the chain (the
+  horse's neck tilts 30° and its head/muzzle follow). A couple of models are
+  only valid after an always-on base-pose animation that this renderer does not
+  run; `staticPoseOffset` nudges those bones (the enderman's head). Derived
+  geometries (`geometry.child:geometry.parent`) inherit the parent's bones, so a
+  model that only lists its additions (the witch hat on top of the villager)
+  renders with a body. Variant-only models (tropical fish, horse, cat, …) get
+  one deterministic variant.
 - Dropped items have no Bedrock model; they render as a camera-facing sprite of
   the item texture from `minecraft-assets`.
 - Anything without a model/texture pair falls back to a deterministic coloured
