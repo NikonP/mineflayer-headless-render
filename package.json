@@ -1,0 +1,51 @@
+{
+  "name": "mineflayer-headless-render",
+  "version": "0.1.0",
+  "description": "Headless POV frame capture for mineflayer bots: software rasterizer, no GPU or canvas",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "type": "commonjs",
+  "license": "MIT",
+  "keywords": [
+    "mineflayer",
+    "minecraft",
+    "render",
+    "headless",
+    "software-rasterizer",
+    "pov"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src",
+    "vendor",
+    "scripts",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "example:capture": "node examples/capture.js",
+    "example:live": "node examples/live.js",
+    "example:arena": "node examples/arena.js",
+    "bench": "node bench/bench.js",
+    "test": "node test/cache.js"
+  },
+  "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "minecraft-assets": "^1.19.0",
+    "minecraft-data": "^3.116.0",
+    "pngjs": "^7.0.0",
+    "vec3": "^0.2.0"
+  },
+  "peerDependencies": {
+    "mineflayer": ">=4.0.0"
+  },
+  "devDependencies": {
+    "mineflayer": "^4.39.0"
+  }
+}
