@@ -6,6 +6,10 @@
   "types": "index.d.ts",
   "type": "commonjs",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NikonP/mineflayer-headless-render.git"
+  },
   "keywords": [
     "mineflayer",
     "minecraft",

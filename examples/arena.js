@@ -1,8 +1,8 @@
-// Arena scene: builds a palette of blocks (floor + wall + 3D shapes) with two
-// rows of mobs and a dropped item in front, plus a second bot as the player
-// entity. Captures a few angles, then cleans up.
+// Arena scene: a palette of blocks (floor + wall + 3D shapes) with rows of mobs
+// and dropped items in front, plus a second bot as the player entity. Captures
+// a few angles, then cleans up. Mobs are summoned facing the camera.
 //
-// Needs a creative server with commands enabled (it uses /fill, /summon, /tp).
+// Needs a creative server with commands enabled (uses /fill, /summon, /tp).
 //   MC_HOST=my.server MC_PORT=25565 node examples/arena.js
 const fs = require('fs')
 const path = require('path')
@@ -37,7 +37,8 @@ const FLOOR = [
   'netherrack',
   'andesite',
   'diorite',
-  'deepslate'
+  'deepslate',
+  'glowstone'
 ]
 
 const WALL = [
@@ -63,7 +64,8 @@ const WALL = [
   'blackstone',
   'basalt',
   'smooth_stone',
-  'iron_block'
+  'iron_block',
+  'sea_lantern'
 ]
 
 const SHAPES = [
@@ -105,6 +107,24 @@ const ROW_B = [
   'armadillo',
   'mooshroom'
 ]
+
+const ITEMS = [
+  'diamond',
+  'emerald',
+  'gold_ingot',
+  'iron_ingot',
+  'redstone',
+  'coal',
+  'apple',
+  'bread',
+  'stick',
+  'torch',
+  'oak_planks',
+  'cobblestone'
+]
+
+// The camera sits at -Z looking +Z, so mobs face -Z (Minecraft yaw 180).
+const FACE_CAMERA = 'Rotation:[180f,0f]'
 
 async function main() {
   const args = parseArgs()
@@ -163,74 +183,13 @@ async function main() {
     bot.chat('/kill @e[type=!minecraft:player]')
     await wait(800)
 
-    for (let i = 0; i < ROW_A.length; i++) {
-      await cmd(
-        `/summon minecraft:${ROW_A[i]} ${x0 + i * 2 + 0.5} ${by} ${z0 + 4.5} {NoAI:1}`
-      )
-    }
-    for (let i = 0; i < ROW_B.length; i++) {
-      await cmd(
-        `/summon minecraft:${ROW_B[i]} ${x0 + i * 2 + 0.5} ${by} ${z0 + 6.5} {NoAI:1}`
-      )
-    }
-    // two fully hidden behind the wall (occlusion check)
-    await cmd(
-      `/summon minecraft:zombie ${x0 + 5.5} ${by} ${z0 + 11.5} {NoAI:1}`
-    )
-    await cmd(`/summon minecraft:cow ${x0 + 15.5} ${by} ${z0 + 11.5} {NoAI:1}`)
-    await cmd(
-      `/summon minecraft:item ${x0 + 21.5} ${by} ${z0 + 3.5} {Item:{id:"minecraft:diamond",count:1}}`
-    )
-
-    await cmd(`/tp ${cfg.username + 'Guest'} ${x0 - 1} ${by} ${z0 + 5.5}`)
-    await wait(800)
-
-    console.log(
-      'entities seen:',
-      Object.values(bot.entities)
-        .map(e => e.name)
-        .join(', ')
-    )
     fs.mkdirSync(outDir, { recursive: true })
-
-    const shots = [
-      {
-        name: 'overview',
-        x: x0 + 11,
-        y: by + 7,
-        z: z0 - 9,
-        yaw: Math.PI,
-        pitch: -16,
-        w: 1280,
-        h: 720
-      },
-      {
-        name: 'ground',
-        x: x0 + 11,
-        y: by + 5,
-        z: z0 + 2,
-        yaw: Math.PI,
-        pitch: -42,
-        w: 1280,
-        h: 720
-      },
-      {
-        name: 'front',
-        x: x0 + 11,
-        y: by + 1,
-        z: z0 - 1,
-        yaw: Math.PI,
-        pitch: -6,
-        w: 1280,
-        h: 720
-      }
-    ]
-    for (const s of shots) {
+    const shoot = async s => {
       await cmd(`/tp ${cfg.username} ${s.x} ${s.y} ${s.z}`)
       await wait(900)
       const buf = await captureFrame(bot, {
-        width: s.w,
-        height: s.h,
+        width: 1280,
+        height: 720,
         yaw: s.yaw,
         pitch: (s.pitch * Math.PI) / 180,
         viewDistance: 6
@@ -239,22 +198,91 @@ async function main() {
       console.log('saved', s.name)
     }
 
+    // Clean block-palette shot, before any mobs are summoned.
+    await shoot({
+      name: 'blocks',
+      x: x0 + 11,
+      y: by + 3,
+      z: z0 - 6,
+      yaw: Math.PI,
+      pitch: 3
+    })
+
+    // Mobs: front row closer, back row staggered, both facing the camera.
+    for (let i = 0; i < ROW_A.length; i++) {
+      await cmd(
+        `/summon minecraft:${ROW_A[i]} ${x0 + i * 2 + 0.5} ${by} ${z0 + 4.5} {NoAI:1,${FACE_CAMERA}}`
+      )
+    }
+    for (let i = 0; i < ROW_B.length; i++) {
+      await cmd(
+        `/summon minecraft:${ROW_B[i]} ${x0 + i * 2 + 1.5} ${by} ${z0 + 6.5} {NoAI:1,${FACE_CAMERA}}`
+      )
+    }
+    // Dropped items on the floor in front of the mobs.
+    for (let i = 0; i < ITEMS.length; i++) {
+      await cmd(
+        `/summon minecraft:item ${x0 + i * 2 + 0.5} ${by + 0.1} ${z0 + 2} {Item:{id:"minecraft:${ITEMS[i]}",count:1},${FACE_CAMERA}}`
+      )
+    }
+    // two fully hidden behind the wall (occlusion check)
+    await cmd(
+      `/summon minecraft:zombie ${x0 + 5.5} ${by} ${z0 + 11.5} {NoAI:1,${FACE_CAMERA}}`
+    )
+    await cmd(
+      `/summon minecraft:cow ${x0 + 15.5} ${by} ${z0 + 11.5} {NoAI:1,${FACE_CAMERA}}`
+    )
+
+    // Player bot into the scene, facing the camera too.
+    await cmd(`/tp ${cfg.username + 'Guest'} ${x0 - 2} ${by} ${z0 + 4.5}`)
+    player.look(0, 0)
+    await wait(800)
+
+    console.log(
+      'entities seen:',
+      Object.values(bot.entities)
+        .map(e => e.name)
+        .join(', ')
+    )
+
+    await shoot({
+      name: 'overview',
+      x: x0 + 20,
+      y: by + 5,
+      z: z0 - 4,
+      yaw: Math.PI * 0.75,
+      pitch: -12
+    })
+    await shoot({
+      name: 'mobs',
+      x: x0 + 11,
+      y: by + 2,
+      z: z0 - 1,
+      yaw: Math.PI,
+      pitch: -4
+    })
+    await shoot({
+      name: 'items',
+      x: x0 + 11,
+      y: by + 2.4,
+      z: z0 - 3,
+      yaw: Math.PI,
+      pitch: -24
+    })
+
     // cleanup
     bot.chat('/kill @e[type=!minecraft:player]')
     await wait(500)
-    for (let i = 0; i < WALL.length; i++) {
+    for (let i = 0; i < WALL.length; i++)
       await fill(
         `${x0 + i} ${by} ${z0 + 9} ${x0 + i} ${by + 2} ${z0 + 9} minecraft:air`
       )
-    }
-    for (let i = 0; i < SHAPES.length; i++) {
+    for (let i = 0; i < SHAPES.length; i++)
       await set(`${x0 + 2 + i * 3} ${by + 3} ${z0 + 9} minecraft:air`)
-    }
-    for (let i = 0; i < FLOOR.length; i++) {
+    for (let i = 0; i < FLOOR.length; i++)
       await fill(
         `${x0 + i} ${by - 1} ${z0} ${x0 + i} ${by - 1} ${z0 + 7} minecraft:grass_block`
       )
-    }
     console.log('cleaned')
 
     player.quit()

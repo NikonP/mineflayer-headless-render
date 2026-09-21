@@ -17,6 +17,19 @@ POV frames for mineflayer bots. Software rasterizer. No GPU, no WebGL, no native
 - Entities: Bedrock models + textures (self-contained, match 1:1).
 - Blocks and dropped items: Java assets.
 
+## Renders
+
+Frames from `examples/arena.js` (superflat test world). Mobs face the camera.
+
+<p>
+  <img src="docs/images/arena-overview.png" width="49%">
+  <img src="docs/images/arena-mobs.png" width="49%">
+  <img src="docs/images/arena-blocks.png" width="49%">
+  <img src="docs/images/arena-items.png" width="49%">
+</p>
+
+Top: overview, mobs. Bottom: block palette, dropped items.
+
 ## Requirements
 
 - Node >= 18.
