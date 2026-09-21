@@ -53,6 +53,9 @@ const bedrockAlias = {
   piglin_brute: 'piglin',
   zoglin: 'hoglin',
   elder_guardian: 'guardian',
+  evoker: 'evocation_illager',
+  zombified_piglin: 'zombie_pigman',
+  tropical_fish: 'tropicalfish',
   horse: 'horse_v3',
   donkey: 'donkey_v3',
   mule: 'mule_v3',
@@ -213,8 +216,8 @@ function parseGeoFile(json) {
         desc.identifier,
         {
           bones: geo.bones || [],
-          texturewidth: desc.texture_width || 64,
-          textureheight: desc.texture_height || 64
+          texturewidth: desc.texture_width,
+          textureheight: desc.texture_height
         }
       ])
     }
@@ -222,16 +225,16 @@ function parseGeoFile(json) {
   }
   for (const [key, geo] of Object.entries(json)) {
     if (!key.startsWith('geometry.') || !geo || !geo.bones) continue
-    const entry = {
-      bones: geo.bones,
-      texturewidth: geo.texturewidth || 64,
-      textureheight: geo.textureheight || 64
-    }
-    out.push([key, entry])
-    // "geometry.child:geometry.parent" — the key is a derived geometry
-    // referenced by its part before the colon (sheep fur derives from sheared)
-    const colon = key.indexOf(':')
-    if (colon !== -1) out.push([key.slice(0, colon), entry])
+    out.push([
+      key,
+      {
+        bones: geo.bones,
+        // left undefined when absent so derived geometries can inherit the
+        // parent's sheet size (consumers default to 64)
+        texturewidth: geo.texturewidth,
+        textureheight: geo.textureheight
+      }
+    ])
   }
   return out
 }
@@ -255,8 +258,29 @@ function listModelFiles(dir, out = []) {
   return out
 }
 
+// Resolve "geometry.child:geometry.parent" inheritance: the child keeps its
+// own bones and gains every parent bone it does not redefine. Without this,
+// derived models that only list their additions (witch = hat + nose on top of
+// the villager) render as a floating hat with no body.
+function resolveGeometry(identifier, raw, seen) {
+  const geo = raw.get(identifier)
+  if (!geo || !geo.parent || seen.has(identifier)) return geo || null
+  seen.add(identifier)
+  const parent = resolveGeometry(geo.parent, raw, seen)
+  if (!parent) return geo
+  const byName = new Map()
+  for (const bone of parent.bones) byName.set(bone.name, bone)
+  for (const bone of geo.bones) byName.set(bone.name, bone)
+  return {
+    bones: [...byName.values()],
+    texturewidth: geo.texturewidth || parent.texturewidth,
+    textureheight: geo.textureheight || parent.textureheight
+  }
+}
+
 function buildGeoIndex() {
   if (geoIndexCache.size) return geoIndexCache
+  const raw = new Map()
   for (const full of listModelFiles(modelDir())) {
     let json = geoFileCache.get(full)
     if (json === undefined) {
@@ -264,8 +288,22 @@ function buildGeoIndex() {
       geoFileCache.set(full, json)
     }
     for (const [identifier, geo] of parseGeoFile(json)) {
-      if (!geoIndexCache.has(identifier)) geoIndexCache.set(identifier, geo)
+      if (!identifier) continue
+      const colon = identifier.indexOf(':')
+      if (colon !== -1) {
+        // "geometry.child:geometry.parent" — register both the full id and the
+        // child alias the entity def actually points at, tagged with the parent
+        const child = identifier.slice(0, colon)
+        const parent = identifier.slice(colon + 1)
+        if (!raw.has(identifier)) raw.set(identifier, { ...geo, parent })
+        if (!raw.has(child)) raw.set(child, { ...geo, parent })
+      } else if (!raw.has(identifier)) {
+        raw.set(identifier, geo)
+      }
     }
+  }
+  for (const identifier of raw.keys()) {
+    geoIndexCache.set(identifier, resolveGeometry(identifier, raw, new Set()))
   }
   return geoIndexCache
 }

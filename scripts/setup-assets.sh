@@ -20,7 +20,9 @@ REF="v1.21.50.7"
 PATHS=(
   resource_pack/entity
   resource_pack/materials
-  resource_pack/models/entity
+  # models/ as a whole, not just models/entity: mobs.json holds the shared
+  # geometries (player, iron golem, skull, agent, bed) that entity defs point at.
+  resource_pack/models
   resource_pack/render_controllers
   resource_pack/textures/entity
 )

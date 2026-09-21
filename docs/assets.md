@@ -19,8 +19,10 @@ is Java, and Bedrock diverges (names, animations) for no benefit here.
 - Upstream: <https://github.com/Mojang/bedrock-samples>, pinned to tag
   `v1.21.50.7` (the closest Bedrock release to the targeted Java 1.21.4).
 - Only these paths are needed: `resource_pack/entity`, `resource_pack/materials`,
-  `resource_pack/models/entity`, `resource_pack/render_controllers`,
-  `resource_pack/textures/entity`.
+  `resource_pack/models`, `resource_pack/render_controllers`,
+  `resource_pack/textures/entity`. `models` as a whole (not just `models/entity`)
+  because `models/mobs.json` holds the shared geometries the entity defs point at
+  (player, iron golem, skull, agent, bed).
 - The pack is **not** redistributed with this project (Mojang EULA). Fetch it
   with `scripts/setup-assets.sh`, which does a partial + sparse clone.
 - The renderer resolves the pack from, in order:
