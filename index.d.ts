@@ -59,22 +59,22 @@ export interface RendererOptions extends CaptureOptions {
  * enters the view. Capture is synchronous and blocks the event loop.
  */
 export class PovRenderer {
-  constructor (opts?: RendererOptions)
+  constructor(opts?: RendererOptions)
   readonly viewDistance: number
   /** Hooks block/chunk invalidation and (by default) prewarms the view box. */
-  attach (bot: Bot, opts?: { prewarm?: boolean }): this
-  detach (): void
+  attach(bot: Bot, opts?: { prewarm?: boolean }): this
+  detach(): void
   /** Meshes the whole current view box. */
-  prewarm (opts?: CaptureOptions): Frame
+  prewarm(opts?: CaptureOptions): Frame
   /** Meshes missing sections up to budgetMs; returns how many were newly meshed. */
-  tick (budgetMs?: number): number
+  tick(budgetMs?: number): number
   /** Raw RGBA frame (no encoding). */
-  render (opts?: CaptureOptions): Frame
+  render(opts?: CaptureOptions): Frame
   /** Encoded frame (PNG by default), ready to write or send. */
-  capture (opts?: CaptureOptions): Buffer
+  capture(opts?: CaptureOptions): Buffer
   /** Number of cached sections (including empty ones). */
-  sectionCount (): number
-  clear (): void
+  sectionCount(): number
+  clear(): void
 }
 
 export interface ConfigureOptions {
@@ -85,16 +85,16 @@ export interface ConfigureOptions {
 }
 
 /** Overrides asset location / default version. Call before the first render. */
-export function configure (opts?: ConfigureOptions): void
+export function configure(opts?: ConfigureOptions): void
 
 /** Renders a frame without encoding. Synchronous. */
-export function renderFrame (bot: Bot, opts?: CaptureOptions): Frame
+export function renderFrame(bot: Bot, opts?: CaptureOptions): Frame
 /** Renders and encodes a frame. */
-export function captureFrame (bot: Bot, opts?: CaptureOptions): Promise<Buffer>
-export function frameToPng (frame: Frame): Buffer
-export function frameToJpeg (frame: Frame, quality?: number): Buffer
+export function captureFrame(bot: Bot, opts?: CaptureOptions): Promise<Buffer>
+export function frameToPng(frame: Frame): Buffer
+export function frameToJpeg(frame: Frame, quality?: number): Buffer
 /** Loads (and caches) the block atlas and blockstates for a version. */
-export function getAssets (version: string, assetsVersion?: string): unknown
+export function getAssets(version: string, assetsVersion?: string): unknown
 
 /** Java version the renderer targets when the bot does not expose one. */
 export const DEFAULT_VERSION: string

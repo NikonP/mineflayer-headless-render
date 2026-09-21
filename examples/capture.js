@@ -12,13 +12,16 @@ const path = require('path')
 const { captureFrame } = require('..')
 const { wait, parseArgs, pick, int, createBot } = require('../scripts/dev-bot')
 
-async function main () {
+async function main() {
   const args = parseArgs()
   const bot = createBot(args)
   const out = pick(args, 'out', 'OUT', 'out/frame.png')
-  const timer = setTimeout(() => { console.error('timed out waiting for spawn'); process.exit(1) }, 60000)
+  const timer = setTimeout(() => {
+    console.error('timed out waiting for spawn')
+    process.exit(1)
+  }, 60000)
 
-  bot.on('error', (err) => {
+  bot.on('error', err => {
     clearTimeout(timer)
     console.error('bot error:', err.message)
     process.exit(1)
@@ -29,7 +32,10 @@ async function main () {
     await wait(int(args, 'settle', 'SETTLE', 2000))
 
     const yaw = args.yaw !== undefined ? parseFloat(args.yaw) : undefined
-    const pitch = args.pitch !== undefined ? parseFloat(args.pitch) * Math.PI / 180 : undefined
+    const pitch =
+      args.pitch !== undefined
+        ? (parseFloat(args.pitch) * Math.PI) / 180
+        : undefined
     const t0 = Date.now()
     const buf = await captureFrame(bot, {
       width: int(args, 'width', 'WIDTH', 640),

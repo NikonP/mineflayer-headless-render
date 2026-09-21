@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "index.js",
+    "index.d.ts",
+    "src/**/*.js",
+    "examples/**/*.js",
+    "test/**/*.js",
+    "bench/**/*.js",
+    "scripts/**/*.js"
+  ],
+  "exclude": ["node_modules", "vendor", "bedrock-samples", "**/out"]
+}

@@ -13,7 +13,13 @@
 //   pov.attach(bot)
 //   const png = pov.capture({ yaw, pitch })
 //   pov.detach()
-const { captureFrame, renderFrame, frameToPng, frameToJpeg, getAssets } = require('./src/capture')
+const {
+  captureFrame,
+  renderFrame,
+  frameToPng,
+  frameToJpeg,
+  getAssets
+} = require('./src/capture')
 const { PovRenderer } = require('./src/renderer')
 const { configure, DEFAULT_VERSION } = require('./src/config')
 

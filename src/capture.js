@@ -14,29 +14,38 @@ let cachedAssets = null
 // Reused across renders: lit-colour buffer (light itself is cached per mesh).
 const defaultLightScratch = { buf: null }
 
-function getAssets (version, assetsVersion) {
-  if (!cachedAssets) cachedAssets = loadAtlasAndViewerAssets(version, assetsVersion)
+function getAssets(version, assetsVersion) {
+  if (!cachedAssets) {
+    cachedAssets = loadAtlasAndViewerAssets(version, assetsVersion)
+  }
   return cachedAssets
 }
 
-function frameToPng (frame) {
+function frameToPng(frame) {
   const png = new PNG({ width: frame.width, height: frame.height })
   png.data = frame.data
   return PNG.sync.write(png)
 }
 
-function frameToJpeg (frame, quality = 90) {
-  return jpeg.encode({
-    data: Buffer.from(frame.data.buffer, frame.data.byteOffset, frame.data.length),
-    width: frame.width,
-    height: frame.height
-  }, quality).data
+function frameToJpeg(frame, quality = 90) {
+  return jpeg.encode(
+    {
+      data: Buffer.from(
+        frame.data.buffer,
+        frame.data.byteOffset,
+        frame.data.length
+      ),
+      width: frame.width,
+      height: frame.height
+    },
+    quality
+  ).data
 }
 
 // renderFrame(bot, opts) → frame (no encoding). When opts.timing is an object
 // it is filled with per-stage milliseconds: world, light, terrain, entities.
 // Split out from captureFrame so benchmarks can separate render from encode.
-function renderFrame (bot, opts = {}) {
+function renderFrame(bot, opts = {}) {
   const width = opts.width || 640
   const height = opts.height || 360
   const version = (bot && bot.version) || opts.version || getDefaultVersion()
@@ -106,10 +115,18 @@ function renderFrame (bot, opts = {}) {
 
 // captureFrame(bot, { width, height, format, yaw, pitch, fov, viewDistance })
 // Returns a Buffer (PNG by default).
-async function captureFrame (bot, opts = {}) {
+async function captureFrame(bot, opts = {}) {
   const frame = renderFrame(bot, opts)
   const format = opts.format || 'png'
-  return format === 'jpeg' ? frameToJpeg(frame, opts.quality) : frameToPng(frame)
+  return format === 'jpeg'
+    ? frameToJpeg(frame, opts.quality)
+    : frameToPng(frame)
 }
 
-module.exports = { captureFrame, renderFrame, frameToPng, frameToJpeg, getAssets }
+module.exports = {
+  captureFrame,
+  renderFrame,
+  frameToPng,
+  frameToJpeg,
+  getAssets
+}

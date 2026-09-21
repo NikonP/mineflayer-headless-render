@@ -46,9 +46,12 @@ node bench/bench-move.js
 
 ## Conventions
 
-- JavaScript Standard Style: no semicolons, 2-space indent, single quotes.
-  `npx standard <files>` is available but the repo is not warning-clean; don't
-  reformat unrelated code.
+- Style: JavaScript Standard Style. ESLint (neostandard) handles correctness,
+  Prettier handles formatting (`eslint-config-prettier` disables the conflicting
+  stylistic rules). Run `npm run lint` / `npm run format`; don't hand-format.
+- Configs: `eslint.config.js`, `prettier.config.js`, `.prettierignore`,
+  `.editorconfig`, `jsconfig.json` (language server). `vendor/` and
+  `bedrock-samples/` are never linted or formatted.
 - Comments explain *why*, not *what*.
 - `performance` is used as a global (Node).
 - Prefer extending the existing modules over adding parallel paths.
@@ -87,6 +90,7 @@ node bench/bench-move.js
 
 ## Workflow expectations
 
+- Before committing: `npm run lint` and `npm run format:check` must pass.
 - After any change touching meshing, caching or lighting: run `node test/cache.js`
   (expect `max=0` for cached vs uncached) **and** a `bench/bench.js --cache` run.
 - After changing entity math/models: run `node test/entity.js` and eyeball the

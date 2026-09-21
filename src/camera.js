@@ -6,7 +6,7 @@ const EYE_HEIGHT = 1.62
 // Camera convention notes (verified against mineflayer/lib/conversions.js):
 // bot yaw = PI - notchianYaw → mineflayer yaw 0 looks north (-Z);
 // bot pitch = -notchianPitch → mineflayer pitch positive = UP.
-function getCameraVP (bot, width, height, opts = {}) {
+function getCameraVP(bot, width, height, opts = {}) {
   const pos = bot.entity.position
   const yaw = opts.yaw !== undefined ? opts.yaw : bot.entity.yaw
   const pitch = opts.pitch !== undefined ? opts.pitch : bot.entity.pitch
@@ -15,10 +15,15 @@ function getCameraVP (bot, width, height, opts = {}) {
   const far = opts.far || 1000
 
   return makeViewProjection(
-    pos.x, pos.y + EYE_HEIGHT, pos.z,
+    pos.x,
+    pos.y + EYE_HEIGHT,
+    pos.z,
     yaw,
     pitch,
-    fov, width / height, near, far
+    fov,
+    width / height,
+    near,
+    far
   )
 }
 

@@ -15,12 +15,18 @@ const { getDefaultVersion } = require('./config')
 // Adapts bot.world (WorldSync) to the shape getSectionGeometry expects.
 // Caching is per-call (reset between sections) to bound memory: the meshing
 // touches each block several times (self + 6 neighbors + 4x AO corners).
-function makeViewWorld (botWorld, biomes) {
+function makeViewWorld(botWorld, biomes) {
   let cache = null
   return {
-    newSection () { cache = new Map() },
-    getBlock (pos) {
-      const floored = new Vec3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z))
+    newSection() {
+      cache = new Map()
+    },
+    getBlock(pos) {
+      const floored = new Vec3(
+        Math.floor(pos.x),
+        Math.floor(pos.y),
+        Math.floor(pos.z)
+      )
       const fkey = `${floored.x},${floored.y},${floored.z}`
       if (cache.has(fkey)) {
         const b = cache.get(fkey)
@@ -31,9 +37,15 @@ function makeViewWorld (botWorld, biomes) {
       if (!b) return null
       // Mirror viewer World.getWorld: isCube is used for face culling
       const shapes = b.shapes
-      b.isCube = !!shapes && shapes.length === 1 &&
-        shapes[0][0] === 0 && shapes[0][1] === 0 && shapes[0][2] === 0 &&
-        shapes[0][3] === 1 && shapes[0][4] === 1 && shapes[0][5] === 1
+      b.isCube =
+        !!shapes &&
+        shapes.length === 1 &&
+        shapes[0][0] === 0 &&
+        shapes[0][1] === 0 &&
+        shapes[0][2] === 0 &&
+        shapes[0][3] === 1 &&
+        shapes[0][4] === 1 &&
+        shapes[0][5] === 1
       // biome object needed for tints
       if (!b.biome || b.biome.name === undefined) {
         const biomeId = botWorld.getBiome(floored)
@@ -46,7 +58,7 @@ function makeViewWorld (botWorld, biomes) {
   }
 }
 
-function collectSections (cache, bot, assets, viewDistanceChunks, budgetMs) {
+function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
   const meshes = []
   const biomes = mcData(bot.version || getDefaultVersion()).biomes
   const view = makeViewWorld(bot.world, biomes)
@@ -68,7 +80,12 @@ function collectSections (cache, bot, assets, viewDistanceChunks, budgetMs) {
   for (const { chunkX, chunkZ, column } of bot.world.getColumns()) {
     const dx = chunkX * 16 - centerX
     const dz = chunkZ * 16 - centerZ
-    if (Math.abs(dx) > viewDistanceChunks * 16 || Math.abs(dz) > viewDistanceChunks * 16) continue
+    if (
+      Math.abs(dx) > viewDistanceChunks * 16 ||
+      Math.abs(dz) > viewDistanceChunks * 16
+    ) {
+      continue
+    }
     columnsFound++
 
     const colMinY = column.minY || 0
@@ -89,11 +106,19 @@ function collectSections (cache, bot, assets, viewDistanceChunks, budgetMs) {
         return meshes
       }
       const section = column.sections[Math.floor((sy - colMinY) / 16)]
-      if (!section || (section.isLoaded && section.isLoaded() === false)) continue
+      if (!section || (section.isLoaded && section.isLoaded() === false)) {
+        continue
+      }
       view.newSection()
       let mesh = null
       try {
-        const geom = getSectionGeometry(chunkX * 16, sy, chunkZ * 16, view, assets.blocksStates)
+        const geom = getSectionGeometry(
+          chunkX * 16,
+          sy,
+          chunkZ * 16,
+          view,
+          assets.blocksStates
+        )
         if (geom.positions.length > 0) {
           geom.lightData = computeLightData(geom, rawSample)
           geom.normals = null // only needed for the light sampling above
@@ -101,10 +126,17 @@ function collectSections (cache, bot, assets, viewDistanceChunks, budgetMs) {
         }
       } catch (e) {
         failed++
-        if (process.env.DEBUG_MESH) console.error('[mesh]', chunkX * 16, sy, chunkZ * 16, e.message)
+        if (process.env.DEBUG_MESH) {
+          console.error('[mesh]', chunkX * 16, sy, chunkZ * 16, e.message)
+        }
       }
       meshed++
-      cache.sections.set(key, { mesh, cx: chunkX, cz: chunkZ, lastSeen: cache.frame })
+      cache.sections.set(key, {
+        mesh,
+        cx: chunkX,
+        cz: chunkZ,
+        lastSeen: cache.frame
+      })
       if (mesh) meshes.push(mesh)
     }
   }
@@ -112,14 +144,16 @@ function collectSections (cache, bot, assets, viewDistanceChunks, budgetMs) {
   cache.lastMeshed = meshed
   if (process.env.DEBUG_MESH) {
     const tris = meshes.reduce((n, m) => n + m.indices.length / 3, 0)
-    console.error(`[mesh] columns=${columnsFound} drawn=${meshes.length} new=${meshed} failed=${failed} tris=${tris} cached=${cache.sections.size}`)
+    console.error(
+      `[mesh] columns=${columnsFound} drawn=${meshes.length} new=${meshed} failed=${failed} tris=${tris} cached=${cache.sections.size}`
+    )
   }
   return meshes
 }
 
 // Keeps section geometry between frames. Keyed by (chunkX, sectionY, chunkZ).
 class MeshCache {
-  constructor (opts = {}) {
+  constructor(opts = {}) {
     this.sections = new Map() // key -> { mesh|null, cx, cz, lastSeen }
     this.frame = 0
     this.lastMeshed = 0
@@ -131,7 +165,7 @@ class MeshCache {
   // A block changed: its own section plus the 26 neighbours can change (face
   // culling and AO sample across section borders). Keys use the section origin
   // (chunk coords + y multiple of 16), matching what collect() stores.
-  invalidateBlock (pos) {
+  invalidateBlock(pos) {
     const cx = Math.floor(pos.x / 16)
     const sy = Math.floor(pos.y / 16) * 16
     const cz = Math.floor(pos.z / 16)
@@ -144,32 +178,49 @@ class MeshCache {
     }
   }
 
-  invalidateColumn (chunkX, chunkZ) {
+  invalidateColumn(chunkX, chunkZ) {
     for (const [key, entry] of this.sections) {
       if (entry.cx === chunkX && entry.cz === chunkZ) this.sections.delete(key)
     }
   }
 
-  clear () { this.sections.clear() }
+  clear() {
+    this.sections.clear()
+  }
 
   // Meshes missing sections of the view box and returns all non-empty ones.
   // budgetMs caps how much new meshing one call may do (for incremental
   // warming); capture should pass Infinity so nothing is missing.
-  collect (bot, assets, viewDistanceChunks = 6, budgetMs = Infinity) {
+  collect(bot, assets, viewDistanceChunks = 6, budgetMs = Infinity) {
     this.frame++
-    const meshes = collectSections(this, bot, assets, viewDistanceChunks, budgetMs)
+    const meshes = collectSections(
+      this,
+      bot,
+      assets,
+      viewDistanceChunks,
+      budgetMs
+    )
     const pos = bot.entity.position.floored()
-    this._evict(Math.floor(pos.x / 16), Math.floor(pos.z / 16), viewDistanceChunks)
+    this._evict(
+      Math.floor(pos.x / 16),
+      Math.floor(pos.z / 16),
+      viewDistanceChunks
+    )
     return meshes
   }
 
   // Entries are keyed by section, so `entries()` is a helper for logging.
-  entries () { return this.sections }
+  entries() {
+    return this.sections
+  }
 
-  _evict (centerChunkX, centerChunkZ, viewDistanceChunks) {
+  _evict(centerChunkX, centerChunkZ, viewDistanceChunks) {
     const max = viewDistanceChunks + this.margin
     for (const [key, entry] of this.sections) {
-      if (Math.abs(entry.cx - centerChunkX) > max || Math.abs(entry.cz - centerChunkZ) > max) {
+      if (
+        Math.abs(entry.cx - centerChunkX) > max ||
+        Math.abs(entry.cz - centerChunkZ) > max
+      ) {
         this.sections.delete(key)
       }
     }
@@ -177,7 +228,7 @@ class MeshCache {
 }
 
 // Uncached convenience: fresh meshes for the current view box.
-function renderWorld (bot, assets, viewDistanceChunks = 6) {
+function renderWorld(bot, assets, viewDistanceChunks = 6) {
   return new MeshCache().collect(bot, assets, viewDistanceChunks)
 }
 

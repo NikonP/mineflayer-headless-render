@@ -8,7 +8,7 @@ const mcData = require('minecraft-data')
 const heightmaps = new WeakMap()
 
 // One heightmap per bot, with its own invalidation listeners.
-function getHeightmap (bot) {
+function getHeightmap(bot) {
   let h = heightmaps.get(bot)
   if (!h) {
     h = new Heightmap(bot)
@@ -18,7 +18,7 @@ function getHeightmap (bot) {
 }
 
 // stateId -> 1 if the block is solid (has a collision box), else 0.
-function solidTable (version) {
+function solidTable(version) {
   const data = mcData(version)
   const blocks = data.blocksArray
   let max = 0
@@ -27,19 +27,22 @@ function solidTable (version) {
   for (const b of blocks) {
     // Leaves only partially block light in vanilla, so they don't count as a
     // roof here — otherwise the ground under every tree goes pitch black.
-    const v = (b.boundingBox && b.boundingBox !== 'empty' && !/leaves/.test(b.name)) ? 1 : 0
+    const v =
+      b.boundingBox && b.boundingBox !== 'empty' && !/leaves/.test(b.name)
+        ? 1
+        : 0
     for (let s = b.minStateId; s <= b.maxStateId; s++) solid[s] = v
   }
   return solid
 }
 
 // Exact key for (x, z) within +-2^19.
-function colKey (x, z) {
+function colKey(x, z) {
   return (x + 0x80000) * 0x100000 + (z + 0x80000)
 }
 
 class Heightmap {
-  constructor (bot) {
+  constructor(bot) {
     this.bot = bot
     this.solid = solidTable(bot.version)
     this.cache = new Map() // key -> { y, cx, cz }
@@ -49,22 +52,26 @@ class Heightmap {
     this.worldTop = this.minY + height - 1
 
     this._onBlock = (oldBlock, newBlock) => {
-      const p = (newBlock && newBlock.position) || (oldBlock && oldBlock.position)
+      const p =
+        (newBlock && newBlock.position) || (oldBlock && oldBlock.position)
       if (p) this.cache.delete(colKey(Math.floor(p.x), Math.floor(p.z)))
     }
-    this._onUnload = (corner) => this.invalidateChunk(Math.floor(corner.x / 16), Math.floor(corner.z / 16))
+    this._onUnload = corner =>
+      this.invalidateChunk(Math.floor(corner.x / 16), Math.floor(corner.z / 16))
     bot.on('blockUpdate', this._onBlock)
-    if (bot.world && bot.world.on) bot.world.on('chunkColumnUnload', this._onUnload)
+    if (bot.world && bot.world.on) {
+      bot.world.on('chunkColumnUnload', this._onUnload)
+    }
   }
 
-  invalidateChunk (chunkX, chunkZ) {
+  invalidateChunk(chunkX, chunkZ) {
     for (const [key, entry] of this.cache) {
       if (entry.cx === chunkX && entry.cz === chunkZ) this.cache.delete(key)
     }
   }
 
   // Highest y with a solid block in the column, or minY - 1 if none.
-  top (x, z) {
+  top(x, z) {
     const key = colKey(x, z)
     const hit = this.cache.get(key)
     if (hit !== undefined) return hit.y
@@ -73,7 +80,10 @@ class Heightmap {
     let y = this.minY - 1
     for (let ty = this.worldTop; ty >= this.minY; ty--) {
       pos.y = ty
-      if (this.solid[world.getBlockStateId(pos)]) { y = ty; break }
+      if (this.solid[world.getBlockStateId(pos)]) {
+        y = ty
+        break
+      }
     }
     this.cache.set(key, { y, cx: Math.floor(x / 16), cz: Math.floor(z / 16) })
     return y

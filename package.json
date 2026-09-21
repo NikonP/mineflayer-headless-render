@@ -33,7 +33,11 @@
     "example:live": "node examples/live.js",
     "example:arena": "node examples/arena.js",
     "bench": "node bench/bench.js",
-    "test": "node test/cache.js"
+    "test": "node test/cache.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",
@@ -46,6 +50,12 @@
     "mineflayer": ">=4.0.0"
   },
   "devDependencies": {
-    "mineflayer": "^4.39.0"
+    "@types/node": "^26.6.2",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "mineflayer": "^4.39.0",
+    "neostandard": "^0.13.0",
+    "prettier": "^3.9.8",
+    "prettier-config-standard": "^7.0.0"
   }
 }

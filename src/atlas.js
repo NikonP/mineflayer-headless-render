@@ -1,5 +1,7 @@
 const { PNG } = require('pngjs')
-const { prepareBlocksStates } = require('../vendor/prismarine-viewer/modelsBuilder')
+const {
+  prepareBlocksStates
+} = require('../vendor/prismarine-viewer/modelsBuilder')
 const mcAssets = require('minecraft-assets')
 const fs = require('fs')
 const path = require('path')
@@ -7,13 +9,13 @@ const path = require('path')
 // The upstream atlas builder needs node-canvas; we install a minimal shim so
 // it works without a native dependency. It draws tiles into a raw RGBA buffer.
 class Ctx2DShim {
-  constructor (width, height) {
+  constructor(width, height) {
     this.width = width
     this.height = height
     this.data = new Uint8ClampedArray(width * height * 4)
   }
 
-  drawImage (img, sx, sy, sw, sh, dx, dy, dw, dh) {
+  drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh) {
     const src = img.__rgba || img.data
     const iw = img.__width || img.width
     const ih = img.__height || img.height
@@ -32,41 +34,10 @@ class Ctx2DShim {
     }
   }
 
-  toBuffer () {
+  toBuffer() {
     const png = new PNG({ width: this.width, height: this.height })
     png.data = this.data
     return PNG.sync.write(png)
-  }
-}
-
-class ImageShim {
-  constructor () {
-    this.__width = 0
-    this.__height = 0
-  }
-
-  set src (value) {
-    const base64 = value.split(',')[1]
-    const png = PNG.sync.read(Buffer.from(base64, 'base64'))
-    this.__rgba = png.data
-    this.__width = png.width
-    this.__height = png.height
-    this.width = png.width
-    this.height = png.height
-  }
-}
-
-class CanvasShim {
-  constructor (width, height) {
-    this.ctx = new Ctx2DShim(width, height)
-  }
-
-  getContext () {
-    return this.ctx
-  }
-
-  toBuffer () {
-    return this.ctx.toBuffer()
   }
 }
 
@@ -74,7 +45,7 @@ class CanvasShim {
 // texture.u/v, frame N at texture.v + N * tileHeight. Tile packing matches
 // upstream atlas.js (columns, tallest strip first) so UVs line up with
 // getSectionGeometry output.
-function loadAtlasAndViewerAssets (version, assetsVersion) {
+function loadAtlasAndViewerAssets(version, assetsVersion) {
   const assets = mcAssets(assetsVersion)
   const atlas = buildAtlas(assets)
   const blocksStates = prepareBlocksStates(assets, atlas)
@@ -88,9 +59,11 @@ function loadAtlasAndViewerAssets (version, assetsVersion) {
 
 // Re-implementation of makeTextureAtlas without node-canvas: same tile
 // packing (columns, tallest first) and same texturesIndex format.
-function buildAtlas (assets) {
+function buildAtlas(assets) {
   const blocksTexturePath = assets.directory + '/blocks'
-  const textureFiles = fs.readdirSync(blocksTexturePath).filter(f => f.endsWith('.png'))
+  const textureFiles = fs
+    .readdirSync(blocksTexturePath)
+    .filter(f => f.endsWith('.png'))
   textureFiles.unshift('missing_texture.png')
 
   const tileSize = 16
@@ -98,7 +71,9 @@ function buildAtlas (assets) {
   const textures = textureFiles.map(file => {
     let png
     if (file === 'missing_texture.png') {
-      png = PNG.sync.read(fs.readFileSync(path.join(__dirname, 'assets', 'missing_texture.png')))
+      png = PNG.sync.read(
+        fs.readFileSync(path.join(__dirname, 'assets', 'missing_texture.png'))
+      )
     } else {
       png = PNG.sync.read(fs.readFileSync(blocksTexturePath + '/' + file))
     }
@@ -106,7 +81,9 @@ function buildAtlas (assets) {
     const mcmetaPath = blocksTexturePath + '/' + file + '.mcmeta'
     let animation = null
     if (png.height > png.width && fs.existsSync(mcmetaPath)) {
-      const { animation: anim } = JSON.parse(fs.readFileSync(mcmetaPath, 'utf8'))
+      const { animation: anim } = JSON.parse(
+        fs.readFileSync(mcmetaPath, 'utf8')
+      )
       if (anim) {
         const frametime = anim.frametime || 1
         const frameCount = Math.floor(png.height / png.width)
@@ -114,7 +91,11 @@ function buildAtlas (assets) {
         animation = {
           frametime,
           frameHeight: png.width,
-          frames: frames.flatMap(f => typeof f === 'number' ? [f] : Array(Math.max(1, Math.round(f.time / frametime))).fill(f.index))
+          frames: frames.flatMap(f =>
+            typeof f === 'number'
+              ? [f]
+              : Array(Math.max(1, Math.round(f.time / frametime))).fill(f.index)
+          )
         }
       }
     }
@@ -127,7 +108,7 @@ function buildAtlas (assets) {
     }
   })
 
-  function nextPowerOfTwo (n) {
+  function nextPowerOfTwo(n) {
     if (n === 0) return 1
     n--
     n |= n >> 1
@@ -155,17 +136,40 @@ function buildAtlas (assets) {
 
   const texturesIndex = {}
   for (const tex of textures) {
-    texturesIndex[tex.name] = { u: tex.x / imgWidth, v: tex.y / imgHeight, su: tileSize / imgWidth, sv: tileSize / imgHeight }
+    texturesIndex[tex.name] = {
+      u: tex.x / imgWidth,
+      v: tex.y / imgHeight,
+      su: tileSize / imgWidth,
+      sv: tileSize / imgHeight
+    }
     if (tex.animation) {
       texturesIndex[tex.name].frames = tex.frames.length
       texturesIndex[tex.name].frametime = tex.animation.frametime
     }
     tex.frames.forEach((frame, i) => {
-      ctx.drawImage(tex.png, 0, frame * tex.frameHeight, tileSize, tileSize, tex.x, tex.y + i * tileSize, tileSize, tileSize)
+      ctx.drawImage(
+        tex.png,
+        0,
+        frame * tex.frameHeight,
+        tileSize,
+        tileSize,
+        tex.x,
+        tex.y + i * tileSize,
+        tileSize,
+        tileSize
+      )
     })
   }
 
-  return { image: ctx, json: { tileSize, width: imgWidth, height: imgHeight, textures: texturesIndex } }
+  return {
+    image: ctx,
+    json: {
+      tileSize,
+      width: imgWidth,
+      height: imgHeight,
+      textures: texturesIndex
+    }
+  }
 }
 
 module.exports = { loadAtlasAndViewerAssets, buildAtlas }

@@ -10,26 +10,30 @@ const path = require('path')
 // when bot.version is not available yet.
 const DEFAULT_VERSION = '1.21.4'
 
-function defaultBedrockPath () {
-  if (process.env.BEDROCK_SAMPLES_PATH) return path.resolve(process.env.BEDROCK_SAMPLES_PATH)
+function defaultBedrockPath() {
+  if (process.env.BEDROCK_SAMPLES_PATH) {
+    return path.resolve(process.env.BEDROCK_SAMPLES_PATH)
+  }
   return path.join(__dirname, '..', 'bedrock-samples')
 }
 
 let bedrockPath = defaultBedrockPath()
 let defaultVersion = DEFAULT_VERSION
 
-function getBedrockPath () {
+function getBedrockPath() {
   return bedrockPath
 }
 
-function getDefaultVersion () {
+function getDefaultVersion() {
   return defaultVersion
 }
 
 // configure({ bedrockPath, defaultVersion })
-function configure (opts = {}) {
+function configure(opts = {}) {
   if (opts.bedrockPath !== undefined) {
-    bedrockPath = opts.bedrockPath ? path.resolve(opts.bedrockPath) : defaultBedrockPath()
+    bedrockPath = opts.bedrockPath
+      ? path.resolve(opts.bedrockPath)
+      : defaultBedrockPath()
     // Models were resolved against the previous root; drop them.
     require('./entityModels').clearAssetCaches()
   }
@@ -37,4 +41,9 @@ function configure (opts = {}) {
   return module.exports
 }
 
-module.exports = { configure, getBedrockPath, getDefaultVersion, DEFAULT_VERSION }
+module.exports = {
+  configure,
+  getBedrockPath,
+  getDefaultVersion,
+  DEFAULT_VERSION
+}

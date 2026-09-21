@@ -6,7 +6,17 @@
 // (see mineflayer/lib/conversions.js): yaw = PI - notchianYaw, so mineflayer
 // yaw=0 looks north (-Z); mineflayer pitch is positive UP (opposite of the
 // notchian convention). World axes: +X east, +Z south.
-function makeViewProjection (eyeX, eyeY, eyeZ, yawRad, pitchRad, fovDeg, aspect, near, far) {
+function makeViewProjection(
+  eyeX,
+  eyeY,
+  eyeZ,
+  yawRad,
+  pitchRad,
+  fovDeg,
+  aspect,
+  near,
+  far
+) {
   const yaw = yawRad
   const pitch = pitchRad
 
@@ -30,16 +40,22 @@ function makeViewProjection (eyeX, eyeY, eyeZ, yawRad, pitchRad, fovDeg, aspect,
   const uz = rx * fy - ry * fx
 
   // View matrix rows: [right; up; -forward] with translation
-  const r00 = rx, r01 = ry, r02 = rz
-  const r10 = ux, r11 = uy, r12 = uz
-  const r20 = -fx, r21 = -fy, r22 = -fz
+  const r00 = rx
+  const r01 = ry
+  const r02 = rz
+  const r10 = ux
+  const r11 = uy
+  const r12 = uz
+  const r20 = -fx
+  const r21 = -fy
+  const r22 = -fz
 
   const t0 = -(r00 * eyeX + r01 * eyeY + r02 * eyeZ)
   const t1 = -(r10 * eyeX + r11 * eyeY + r12 * eyeZ)
   const t2 = -(r20 * eyeX + r21 * eyeY + r22 * eyeZ)
 
   // Perspective projection
-  const f = 1 / Math.tan(fovDeg * Math.PI / 360)
+  const f = 1 / Math.tan((fovDeg * Math.PI) / 360)
   const p00 = f / aspect
   const p11 = f
   const p22 = (far + near) / (near - far)
@@ -76,16 +92,20 @@ function makeViewProjection (eyeX, eyeY, eyeZ, yawRad, pitchRad, fovDeg, aspect,
 // positions: Float32Array xyz, uvs: Float32Array, colors: Float32Array rgb,
 // indices: Uint32Array, offset: world-space origin of the mesh.
 // atlas: { data: Uint8ClampedArray, width, height } (RGBA).
-function renderMesh (frame, vp, mesh, atlas, opts = {}) {
+function renderMesh(frame, vp, mesh, atlas, opts = {}) {
   const { positions, uvs, indices } = mesh
   // opts.colors overrides the mesh's own colours (used to pass lit copies of
   // cached section meshes without mutating the cache).
   const colors = opts.colors || mesh.colors
-  const ox = mesh.sx, oy = mesh.sy, oz = mesh.sz
+  const ox = mesh.sx
+  const oy = mesh.sy
+  const oz = mesh.sz
 
   const nVerts = positions.length / 3
   let clip = frame._clip
-  if (clip.length < nVerts * 4) frame._clip = clip = new Float32Array(nVerts * 4)
+  if (clip.length < nVerts * 4) {
+    frame._clip = clip = new Float32Array(nVerts * 4)
+  }
 
   const width = frame.width
   const height = frame.height
@@ -130,12 +150,12 @@ function renderMesh (frame, vp, mesh, atlas, opts = {}) {
     // Behind near plane or degenerate w — skip
     if (w0 < 0.01 || w1 < 0.01 || w2 < 0.01) continue
 
-    const x0 = clip[i0 * 4] / w0 * cx + cx
-    const y0 = -clip[i0 * 4 + 1] / w0 * cy + cy
-    const x1 = clip[i1 * 4] / w1 * cx + cx
-    const y1 = -clip[i1 * 4 + 1] / w1 * cy + cy
-    const x2 = clip[i2 * 4] / w2 * cx + cx
-    const y2 = -clip[i2 * 4 + 1] / w2 * cy + cy
+    const x0 = (clip[i0 * 4] / w0) * cx + cx
+    const y0 = (-clip[i0 * 4 + 1] / w0) * cy + cy
+    const x1 = (clip[i1 * 4] / w1) * cx + cx
+    const y1 = (-clip[i1 * 4 + 1] / w1) * cy + cy
+    const x2 = (clip[i2 * 4] / w2) * cx + cx
+    const y2 = (-clip[i2 * 4 + 1] / w2) * cy + cy
 
     // Signed area for culling and early rejection
     const area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
@@ -153,13 +173,24 @@ function renderMesh (frame, vp, mesh, atlas, opts = {}) {
     // Per-vertex attributes. UVs are stored pre-divided by w (perspective-
     // correct interpolation: linearly interpolate u/w and 1/w in screen space,
     // then divide per pixel — same as GPU rasterizers).
-    const invW0 = 1 / w0, invW1 = 1 / w1, invW2 = 1 / w2
-    const u0 = uvs[i0 * 2] * invW0, v0 = uvs[i0 * 2 + 1] * invW0
-    const u1 = uvs[i1 * 2] * invW1, v1 = uvs[i1 * 2 + 1] * invW1
-    const u2 = uvs[i2 * 2] * invW2, v2 = uvs[i2 * 2 + 1] * invW2
-    const c0r = colors[i0 * 3], c0g = colors[i0 * 3 + 1], c0b = colors[i0 * 3 + 2]
-    const c1r = colors[i1 * 3], c1g = colors[i1 * 3 + 1], c1b = colors[i1 * 3 + 2]
-    const c2r = colors[i2 * 3], c2g = colors[i2 * 3 + 1], c2b = colors[i2 * 3 + 2]
+    const invW0 = 1 / w0
+    const invW1 = 1 / w1
+    const invW2 = 1 / w2
+    const u0 = uvs[i0 * 2] * invW0
+    const v0 = uvs[i0 * 2 + 1] * invW0
+    const u1 = uvs[i1 * 2] * invW1
+    const v1 = uvs[i1 * 2 + 1] * invW1
+    const u2 = uvs[i2 * 2] * invW2
+    const v2 = uvs[i2 * 2 + 1] * invW2
+    const c0r = colors[i0 * 3]
+    const c0g = colors[i0 * 3 + 1]
+    const c0b = colors[i0 * 3 + 2]
+    const c1r = colors[i1 * 3]
+    const c1g = colors[i1 * 3 + 1]
+    const c1b = colors[i1 * 3 + 2]
+    const c2r = colors[i2 * 3]
+    const c2g = colors[i2 * 3 + 1]
+    const c2b = colors[i2 * 3 + 2]
     const z0 = clip[i0 * 4 + 2] / w0
     const z1 = clip[i1 * 4 + 2] / w1
     const z2 = clip[i2 * 4 + 2] / w2
@@ -182,10 +213,12 @@ function renderMesh (frame, vp, mesh, atlas, opts = {}) {
         if (z >= zbuf[zi]) continue
 
         // Perspective-correct UVs
-        const f0 = l0 * invW0, f1 = l1 * invW1, f2 = l2 * invW2
+        const f0 = l0 * invW0
+        const f1 = l1 * invW1
+        const f2 = l2 * invW2
         const invW = f0 + f1 + f2
         const u = ((l0 * u0 + l1 * u1 + l2 * u2) / invW) * atlasW
-        const v = (l0 * v0 + l1 * v1 + l2 * v2) / invW * atlasH
+        const v = ((l0 * v0 + l1 * v1 + l2 * v2) / invW) * atlasH
         let tu = u | 0
         let tv = v | 0
         if (tu < 0) tu = 0
@@ -223,7 +256,16 @@ function renderMesh (frame, vp, mesh, atlas, opts = {}) {
 }
 
 // Solid color triangle list without atlas (used for entities MVP)
-function renderSolidMesh (frame, vp, positions, indices, r, g, b, brightness = 1) {
+function renderSolidMesh(
+  frame,
+  vp,
+  positions,
+  indices,
+  r,
+  g,
+  b,
+  brightness = 1
+) {
   const width = frame.width
   const height = frame.height
   const cx = width / 2
@@ -253,12 +295,12 @@ function renderSolidMesh (frame, vp, positions, indices, r, g, b, brightness = 1
     const w2 = clip[i2 * 4 + 3]
     if (w0 < 0.01 || w1 < 0.01 || w2 < 0.01) continue
 
-    const x0 = clip[i0 * 4] / w0 * cx + cx
-    const y0 = -clip[i0 * 4 + 1] / w0 * cy + cy
-    const x1 = clip[i1 * 4] / w1 * cx + cx
-    const y1 = -clip[i1 * 4 + 1] / w1 * cy + cy
-    const x2 = clip[i2 * 4] / w2 * cx + cx
-    const y2 = -clip[i2 * 4 + 1] / w2 * cy + cy
+    const x0 = (clip[i0 * 4] / w0) * cx + cx
+    const y0 = (-clip[i0 * 4 + 1] / w0) * cy + cy
+    const x1 = (clip[i1 * 4] / w1) * cx + cx
+    const y1 = (-clip[i1 * 4 + 1] / w1) * cy + cy
+    const x2 = (clip[i2 * 4] / w2) * cx + cx
+    const y2 = (-clip[i2 * 4 + 1] / w2) * cy + cy
 
     const area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
     if (area >= 0) continue // cull

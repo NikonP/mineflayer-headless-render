@@ -14,7 +14,7 @@ const { MeshCache } = require('./worldRender')
 const { renderFrame, frameToPng, frameToJpeg, getAssets } = require('./capture')
 
 class PovRenderer {
-  constructor (opts = {}) {
+  constructor(opts = {}) {
     this.opts = opts
     this.viewDistance = opts.viewDistance !== undefined ? opts.viewDistance : 6
     this.cache = new MeshCache({ margin: opts.evictMargin })
@@ -24,47 +24,58 @@ class PovRenderer {
   }
 
   // Hooks block-change / chunk-unload events so the cache stays valid.
-  attach (bot, { prewarm = true } = {}) {
+  attach(bot, { prewarm = true } = {}) {
     this.detach()
     this.bot = bot
     this._onBlock = (oldBlock, newBlock) => {
-      const p = (newBlock && newBlock.position) || (oldBlock && oldBlock.position)
+      const p =
+        (newBlock && newBlock.position) || (oldBlock && oldBlock.position)
       if (p) this.cache.invalidateBlock(p)
     }
-    this._onUnload = (corner) => {
-      this.cache.invalidateColumn(Math.floor(corner.x / 16), Math.floor(corner.z / 16))
+    this._onUnload = corner => {
+      this.cache.invalidateColumn(
+        Math.floor(corner.x / 16),
+        Math.floor(corner.z / 16)
+      )
     }
     bot.on('blockUpdate', this._onBlock)
-    if (bot.world && bot.world.on) bot.world.on('chunkColumnUnload', this._onUnload)
+    if (bot.world && bot.world.on) {
+      bot.world.on('chunkColumnUnload', this._onUnload)
+    }
     if (prewarm) this.prewarm()
     return this
   }
 
-  detach () {
+  detach() {
     if (!this.bot) return
     this.bot.off('blockUpdate', this._onBlock)
-    if (this.bot.world && this.bot.world.off) this.bot.world.off('chunkColumnUnload', this._onUnload)
+    if (this.bot.world && this.bot.world.off) {
+      this.bot.world.off('chunkColumnUnload', this._onUnload)
+    }
     this.bot = null
   }
 
   // Meshes the whole current view box (one-off; first capture after a teleport
   // is the other expensive moment). Returns the raw frame.
-  prewarm (opts = {}) {
+  prewarm(opts = {}) {
     return this.render(opts)
   }
 
   // Incremental warming: meshes missing sections up to budgetMs and returns how
   // many sections were newly meshed. Call from a bot tick so captures stay
   // spike-free.
-  tick (budgetMs = 4) {
+  tick(budgetMs = 4) {
     if (!this.bot) return 0
-    const assets = getAssets(this.bot.version, this.opts.assetsVersion || this.bot.version)
+    const assets = getAssets(
+      this.bot.version,
+      this.opts.assetsVersion || this.bot.version
+    )
     this.cache.collect(this.bot, assets, this.viewDistance, budgetMs)
     return this.cache.lastMeshed
   }
 
   // Raw RGBA frame (no encoding).
-  render (opts = {}) {
+  render(opts = {}) {
     return renderFrame(this.bot, {
       ...this.opts,
       ...opts,
@@ -74,15 +85,21 @@ class PovRenderer {
   }
 
   // Encoded frame (PNG by default), ready to write/send.
-  capture (opts = {}) {
+  capture(opts = {}) {
     const frame = this.render(opts)
     const format = opts.format || this.opts.format || 'png'
-    return format === 'jpeg' ? frameToJpeg(frame, opts.quality) : frameToPng(frame)
+    return format === 'jpeg'
+      ? frameToJpeg(frame, opts.quality)
+      : frameToPng(frame)
   }
 
-  sectionCount () { return this.cache.entries().size }
+  sectionCount() {
+    return this.cache.entries().size
+  }
 
-  clear () { this.cache.clear() }
+  clear() {
+    this.cache.clear()
+  }
 }
 
 module.exports = { PovRenderer, MeshCache }

@@ -2,34 +2,39 @@
 // from CLI flags with environment fallbacks. Not part of the public API.
 const mineflayer = require('mineflayer')
 
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 // Minimal `--flag value` / `--flag` parser.
-function parseArgs (argv = process.argv.slice(2)) {
+function parseArgs(argv = process.argv.slice(2)) {
   const args = {}
   for (let i = 0; i < argv.length; i++) {
     if (!argv[i].startsWith('--')) continue
     const key = argv[i].slice(2)
     const next = argv[i + 1]
     if (next === undefined || next.startsWith('--')) args[key] = true
-    else { args[key] = next; i++ }
+    else {
+      args[key] = next
+      i++
+    }
   }
   return args
 }
 
 // CLI flag > environment variable > default.
-function pick (args, flag, env, fallback) {
+function pick(args, flag, env, fallback) {
   if (args[flag] !== undefined && args[flag] !== true) return args[flag]
-  if (env && process.env[env] !== undefined && process.env[env] !== '') return process.env[env]
+  if (env && process.env[env] !== undefined && process.env[env] !== '') {
+    return process.env[env]
+  }
   return fallback
 }
 
-function int (args, flag, env, fallback) {
+function int(args, flag, env, fallback) {
   return parseInt(pick(args, flag, env, String(fallback)), 10)
 }
 
 // Connection details. Defaults are placeholders — point them at your server.
-function serverConfig (args) {
+function serverConfig(args) {
   return {
     host: pick(args, 'host', 'MC_HOST', 'localhost'),
     port: int(args, 'port', 'MC_PORT', 25565),
@@ -39,7 +44,7 @@ function serverConfig (args) {
   }
 }
 
-function createBot (args = parseArgs(), extra = {}) {
+function createBot(args = parseArgs(), extra = {}) {
   return mineflayer.createBot({ ...serverConfig(args), ...extra })
 }
 

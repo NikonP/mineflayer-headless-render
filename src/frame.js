@@ -1,6 +1,6 @@
 // Framebuffer with z-buffer and sky background
 // opts.skyColor: [r, g, b] background (day/dusk/night), defaults to day blue.
-function createFrame (width, height, opts = {}) {
+function createFrame(width, height, opts = {}) {
   const data = new Uint8ClampedArray(width * height * 4)
   const sky = opts.skyColor || [0x78, 0xa7, 0xff]
   for (let i = 0; i < width * height; i++) {

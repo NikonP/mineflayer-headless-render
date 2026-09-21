@@ -12,8 +12,13 @@ const DAY = 24000
 // t=0 and t=24000 share a value. Noon (6000) is full brightness, midnight
 // (18000) is dim moonlight.
 const DAY_FACTOR = [
-  [0, 0.30], [1500, 1.0], [10500, 1.0], [13500, 0.30],
-  [18000, 0.22], [22500, 0.30], [24000, 0.30]
+  [0, 0.3],
+  [1500, 1.0],
+  [10500, 1.0],
+  [13500, 0.3],
+  [18000, 0.22],
+  [22500, 0.3],
+  [24000, 0.3]
 ]
 
 const SKY_DAY = [0x78, 0xa7, 0xff]
@@ -23,36 +28,40 @@ const SKY_DUSK = [0xd8, 0x8a, 0x4a]
 // Brightness floor so nothing is pure black (keeps dark scenes readable).
 const AMBIENT = 0.08
 
-function lerp (a, b, t) { return a + (b - a) * t }
+function lerp(a, b, t) {
+  return a + (b - a) * t
+}
 
-function normalize (t) {
+function normalize(t) {
   t = Number(t) % DAY
   if (t < 0) t += DAY
   return t
 }
 
-function piecewise (points, t) {
+function piecewise(points, t) {
   for (let i = 0; i < points.length - 1; i++) {
     const [t0, v0] = points[i]
     const [t1, v1] = points[i + 1]
-    if (t >= t0 && t <= t1) return lerp(v0, v1, (t1 - t0) === 0 ? 0 : (t - t0) / (t1 - t0))
+    if (t >= t0 && t <= t1) {
+      return lerp(v0, v1, t1 - t0 === 0 ? 0 : (t - t0) / (t1 - t0))
+    }
   }
   return points[points.length - 1][1]
 }
 
 // Sky-light scale for a time of day (0.22 night .. 1.0 noon).
-function dayFactor (timeOfDay) {
+function dayFactor(timeOfDay) {
   return piecewise(DAY_FACTOR, normalize(timeOfDay))
 }
 
 // Triangular bump peaking at `center`, zero beyond halfWidth, wrapping at 24000.
-function bump (t, center, halfWidth) {
+function bump(t, center, halfWidth) {
   let d = Math.abs(normalize(t) - center)
   if (d > DAY / 2) d = DAY - d
   return Math.max(0, 1 - d / halfWidth)
 }
 
-function skyColor (timeOfDay) {
+function skyColor(timeOfDay) {
   const t = normalize(timeOfDay)
   const d = dayFactor(t)
   const dn = (d - 0.22) / (1 - 0.22)
@@ -60,7 +69,11 @@ function skyColor (timeOfDay) {
   let g = lerp(SKY_NIGHT[1], SKY_DAY[1], dn)
   let b = lerp(SKY_NIGHT[2], SKY_DAY[2], dn)
   // warm tint around sunrise/sunset
-  const dusk = Math.max(bump(t, 12000, 2200), bump(t, 0, 2200), bump(t, 24000, 2200))
+  const dusk = Math.max(
+    bump(t, 12000, 2200),
+    bump(t, 0, 2200),
+    bump(t, 24000, 2200)
+  )
   if (dusk > 0) {
     r = lerp(r, SKY_DUSK[0], dusk)
     g = lerp(g, SKY_DUSK[1], dusk)
@@ -70,30 +83,41 @@ function skyColor (timeOfDay) {
 }
 
 // Combined light level 0..15: block light wins, sky light is scaled by daylight.
-function combineLight (sky, block, factor) {
+function combineLight(sky, block, factor) {
   return Math.max(block, Math.min(15, sky * factor))
 }
 
 // Light level -> display brightness (0..1), with an ambient floor.
-function brightness (level) {
+function brightness(level) {
   const l = Math.max(0, Math.min(15, level)) / 15
   return AMBIENT + (1 - AMBIENT) * Math.pow(l, 1.5)
 }
 
 // Resolve the time of day: explicit opts.timeOfDay, then env TIME_OF_DAY, then
 // the live server clock.
-function resolveTime (bot, opts = {}) {
+function resolveTime(bot, opts = {}) {
   let t
-  if (opts.timeOfDay !== undefined && opts.timeOfDay !== null) t = Number(opts.timeOfDay)
-  else if (process.env.TIME_OF_DAY !== undefined && process.env.TIME_OF_DAY !== '') t = Number(process.env.TIME_OF_DAY)
-  else if (bot && bot.time && bot.time.timeOfDay !== null && bot.time.timeOfDay !== undefined) t = Number(bot.time.timeOfDay)
-  else t = 6000
+  if (opts.timeOfDay !== undefined && opts.timeOfDay !== null) {
+    t = Number(opts.timeOfDay)
+  } else if (
+    process.env.TIME_OF_DAY !== undefined &&
+    process.env.TIME_OF_DAY !== ''
+  ) {
+    t = Number(process.env.TIME_OF_DAY)
+  } else if (
+    bot &&
+    bot.time &&
+    bot.time.timeOfDay !== null &&
+    bot.time.timeOfDay !== undefined
+  ) {
+    t = Number(bot.time.timeOfDay)
+  } else t = 6000
   return normalize(t)
 }
 
 // Packs block coords into one exact double (x,z within +-2^19, y within
 // -64..320), avoiding string keys in the per-vertex hot loop.
-function blockKey (x, y, z) {
+function blockKey(x, y, z) {
   return ((x + 0x80000) * 0x100000 + (z + 0x80000)) * 0x1000 + (y + 0x40)
 }
 
@@ -101,10 +125,10 @@ function blockKey (x, y, z) {
 // light corrected against the heightmap: sky 0 above the column's highest solid
 // block means open sky, not darkness. Unloaded columns fall back to open sky so
 // world edges don't turn black. Pass a Map to reuse across calls (cleared here).
-function makeRawSampler (world, heightmap, cache) {
+function makeRawSampler(world, heightmap, cache) {
   const c = cache || new Map()
   c.clear()
-  return function sample (x, y, z) {
+  return function sample(x, y, z) {
     const key = blockKey(x, y, z)
     let v = c.get(key)
     if (v !== undefined) return v
@@ -124,7 +148,7 @@ function makeRawSampler (world, heightmap, cache) {
 
 // Per-quad packed light, computed once when a section is meshed and stored on
 // the mesh, so per-frame shading is just a table lookup.
-function computeLightData (mesh, sample) {
+function computeLightData(mesh, sample) {
   const { positions, normals } = mesh
   const ox = mesh.sx
   const oy = mesh.sy
@@ -134,7 +158,7 @@ function computeLightData (mesh, sample) {
   const data = new Uint8Array(quads)
   // Step off the face into the neighbouring air block: light inside a solid
   // block is 0 and would otherwise render everything black.
-  const sampleVertex = (i) => {
+  const sampleVertex = i => {
     const wx = positions[i * 3] + ox + normals[i * 3] * 0.5
     const wy = positions[i * 3 + 1] + oy + normals[i * 3 + 1] * 0.5
     const wz = positions[i * 3 + 2] + oz + normals[i * 3 + 2] * 0.5
@@ -158,14 +182,14 @@ const BRIGHT_LUT = (() => {
 // Fills scratch.buf with the mesh's base vertex colours scaled by light and
 // returns a view of it. Cached meshes keep their unlit colours, so light is
 // never mutated into them — it is recomputed into scratch each frame instead.
-function bakeLight (mesh, factor, scratch) {
+function bakeLight(mesh, factor, scratch) {
   const base = mesh.colors
   const n = base.length
   if (!scratch.buf || scratch.buf.length < n) scratch.buf = new Float32Array(n)
   const out = scratch.buf
   const data = mesh.lightData
   const verts = n / 3
-  const shade = (packed) => {
+  const shade = packed => {
     const sky = (packed >> 4) & 15
     const block = packed & 15
     let level = sky * factor
@@ -196,7 +220,7 @@ function bakeLight (mesh, factor, scratch) {
 }
 
 // Brightness at an entity's body, sampled from the world.
-function entityBrightness (world, entity, factor, heightmap) {
+function entityBrightness(world, entity, factor, heightmap) {
   const p = entity.position
   const h = (entity.height || 1.8) * 0.75
   const x = Math.floor(p.x)

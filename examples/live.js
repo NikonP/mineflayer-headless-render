@@ -10,7 +10,7 @@ const path = require('path')
 const { PovRenderer } = require('..')
 const { wait, parseArgs, pick, int, createBot } = require('../scripts/dev-bot')
 
-async function main () {
+async function main() {
   const args = parseArgs()
   const bot = createBot(args)
   const outDir = pick(args, 'out', 'OUT', path.join(__dirname, 'out'))
@@ -19,9 +19,12 @@ async function main () {
   const width = int(args, 'width', 'WIDTH', 640)
   const height = int(args, 'height', 'HEIGHT', 360)
   const timeOfDay = args.time !== undefined ? parseFloat(args.time) : undefined
-  const timer = setTimeout(() => { console.error('timed out waiting for spawn'); process.exit(1) }, 60000)
+  const timer = setTimeout(() => {
+    console.error('timed out waiting for spawn')
+    process.exit(1)
+  }, 60000)
 
-  bot.on('error', (err) => {
+  bot.on('error', err => {
     clearTimeout(timer)
     console.error('bot error:', err.message)
     process.exit(1)
@@ -31,10 +34,14 @@ async function main () {
     clearTimeout(timer)
     await wait(int(args, 'settle', 'SETTLE', 2500))
 
-    const pov = new PovRenderer({ viewDistance: int(args, 'view-distance', 'VIEW_DISTANCE', 6) })
+    const pov = new PovRenderer({
+      viewDistance: int(args, 'view-distance', 'VIEW_DISTANCE', 6)
+    })
     const t0 = Date.now()
     pov.attach(bot)
-    console.log(`prewarm: ${pov.sectionCount()} sections in ${Date.now() - t0} ms`)
+    console.log(
+      `prewarm: ${pov.sectionCount()} sections in ${Date.now() - t0} ms`
+    )
 
     // Spread meshing between captures; harmless if the bot is idle.
     const onTick = () => pov.tick(4)
@@ -46,7 +53,9 @@ async function main () {
       const buf = pov.capture({ width, height, timeOfDay })
       const file = path.join(outDir, `live_${i}.png`)
       fs.writeFileSync(file, buf)
-      console.log(`frame ${i}: ${Date.now() - t} ms, ${pov.sectionCount()} cached sections -> ${file}`)
+      console.log(
+        `frame ${i}: ${Date.now() - t} ms, ${pov.sectionCount()} cached sections -> ${file}`
+      )
       if (i < frames - 1) await wait(interval)
     }
 

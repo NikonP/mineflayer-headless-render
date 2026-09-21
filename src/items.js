@@ -12,7 +12,7 @@ const mcAssets = require('minecraft-assets')
 const assetsCache = new Map()
 const texCache = new Map()
 
-function getAssets (version) {
+function getAssets(version) {
   let a = assetsCache.get(version)
   if (!a) {
     a = mcAssets(version)
@@ -23,32 +23,43 @@ function getAssets (version) {
 
 // The dropped stack lives in entity metadata as { itemId, itemCount }; its slot
 // index varies by version, so find it by shape.
-function itemStack (entity) {
+function itemStack(entity) {
   const meta = entity.metadata
   if (!Array.isArray(meta)) return null
   for (const m of meta) {
-    if (m && typeof m === 'object' && typeof m.itemId === 'number' && (m.itemCount !== undefined || m.count !== undefined)) return m
+    if (
+      m &&
+      typeof m === 'object' &&
+      typeof m.itemId === 'number' &&
+      (m.itemCount !== undefined || m.count !== undefined)
+    ) {
+      return m
+    }
   }
   return null
 }
 
-function itemName (entity, version) {
+function itemName(entity, version) {
   const stack = itemStack(entity)
   if (!stack || stack.itemId <= 0) return null
   const data = mcData(version)
-  const item = (data.items && data.items[stack.itemId]) || (data.itemsById && data.itemsById[stack.itemId])
+  const item =
+    (data.items && data.items[stack.itemId]) ||
+    (data.itemsById && data.itemsById[stack.itemId])
   return item ? item.name : null
 }
 
 // Resolve the sprite PNG: item texture first, then the block texture for
 // block items, then a name-based guess.
-function textureFile (assets, name) {
+function textureFile(assets, name) {
   const candidates = []
   const entry = assets.items && assets.items[name]
   if (entry && entry.texture) {
     const rel = entry.texture.replace(/^minecraft:/, '')
     candidates.push(rel)
-    if (rel.startsWith('block/')) candidates.push('blocks/' + rel.slice('block/'.length))
+    if (rel.startsWith('block/')) {
+      candidates.push('blocks/' + rel.slice('block/'.length))
+    }
   }
   candidates.push('items/' + name)
   candidates.push('blocks/' + name)
@@ -60,7 +71,7 @@ function textureFile (assets, name) {
 }
 
 // Decoded RGBA sprite, first animation frame only. Cached per version+name.
-function itemTexture (version, name) {
+function itemTexture(version, name) {
   const key = version + ':' + name
   if (texCache.has(key)) return texCache.get(key)
   let tex = null
@@ -71,7 +82,8 @@ function itemTexture (version, name) {
       const png = PNG.sync.read(fs.readFileSync(file))
       let data = png.data
       let height = png.height
-      if (png.height > png.width) { // animated strip: keep the first frame
+      if (png.height > png.width) {
+        // animated strip: keep the first frame
         height = png.width
         data = data.subarray(0, png.width * height * 4)
       }
@@ -86,7 +98,7 @@ function itemTexture (version, name) {
 
 // Camera-facing quad for one dropped item. `right`/`up` are the camera basis
 // vectors in world space (derived from the view-projection matrix).
-function buildSpriteMesh (entity, right, up, opts = {}) {
+function buildSpriteMesh(entity, right, up, opts = {}) {
   const size = opts.size || 0.45
   const half = size / 2
   const lift = opts.lift !== undefined ? opts.lift : 0.3
