@@ -84,17 +84,8 @@ function renderFrame(bot, opts = {}) {
   const planes = opts.noCull ? null : frustumPlanes(vp)
   let culled = 0
 
-  // Light is baked into a scratch buffer per mesh (never into the cached mesh
-  // itself, otherwise repeated frames would multiply the darkening). The
-  // per-quad light was computed when the section was meshed.
-  const scratch = opts.lightScratch || defaultLightScratch
-  const atlas = {
-    data: assets.atlasImage.data,
-    width: assets.atlasImage.width,
-    height: assets.atlasImage.height
-  }
-  let lightMs = 0
-  let terrainMs = 0
+  // Frustum-cull once: both passes draw the same survivor list.
+  const visible = []
   for (const mesh of meshes) {
     if (
       planes &&
@@ -112,25 +103,87 @@ function renderFrame(bot, opts = {}) {
       culled++
       continue
     }
-    let colors
-    if (mesh.colors && !opts.noLight) {
-      if (timing) t = performance.now()
-      colors = bakeLight(mesh, factor, scratch)
-      if (timing) lightMs += performance.now() - t
-    }
+    visible.push(mesh)
+  }
+
+  // Light is baked into a scratch buffer per mesh (never into the cached mesh
+  // itself, otherwise repeated frames would multiply the darkening). The
+  // per-quad light was computed when the section was meshed.
+  const scratch = opts.lightScratch || defaultLightScratch
+  const atlas = {
+    data: assets.atlasImage.data,
+    width: assets.atlasImage.width,
+    height: assets.atlasImage.height
+  }
+  let lightMs = 0
+  let terrainMs = 0
+  // Lit colours for blended meshes are kept between the passes in a per-mesh
+  // scratch buffer (never in mesh.colors, so cached geometry stays unlit).
+  const litColors = new Map()
+  const bake = mesh => {
+    if (!mesh.colors || opts.noLight) return undefined
     if (timing) t = performance.now()
-    renderMesh(frame, vp, mesh, atlas, { colors })
+    let colors
+    if (mesh.translucent) {
+      if (!mesh._litScratch || mesh._litScratch.length < mesh.colors.length) {
+        mesh._litScratch = new Float32Array(mesh.colors.length)
+      }
+      colors = bakeLight(mesh, factor, { buf: mesh._litScratch })
+      litColors.set(mesh, colors)
+    } else {
+      colors = bakeLight(mesh, factor, scratch)
+    }
+    if (timing) lightMs += performance.now() - t
+    return colors
+  }
+
+  // Pass 1: opaque terrain and alpha cutouts write depth.
+  for (const mesh of visible) {
+    const colors = bake(mesh)
+    if (timing) t = performance.now()
+    renderMesh(frame, vp, mesh, atlas, {
+      colors,
+      pass: 'opaque',
+      indices: mesh.opaqueIndices || mesh.indices
+    })
     if (timing) terrainMs += performance.now() - t
   }
+
+  // Entities are opaque as well; drawing them before the blended pass lets
+  // water blend over a submerged entity instead of being painted over.
+  if (timing) t = performance.now()
+  renderEntities(bot, frame, vp, assets, { ...opts, lightFactor: factor })
+  if (timing) timing.entities = performance.now() - t
+
+  // Pass 2: blended blocks, far to near. Sections are the sort unit; the
+  // depth-free blend is order-independent enough within one section.
+  const eye = (bot.entity && bot.entity.position) || { x: 0, y: 0, z: 0 }
+  const eyeY = eye.y + 1.62
+  const dist2 = mesh => {
+    const a = mesh.aabb
+    const dx = (a[0] + a[3]) * 0.5 - eye.x
+    const dy = (a[1] + a[4]) * 0.5 - eyeY
+    const dz = (a[2] + a[5]) * 0.5 - eye.z
+    return dx * dx + dy * dy + dz * dz
+  }
+  const blendedMeshes = visible
+    .filter(mesh => mesh.translucent)
+    .sort((a, b) => dist2(b) - dist2(a))
+  for (const mesh of blendedMeshes) {
+    if (timing) t = performance.now()
+    renderMesh(frame, vp, mesh, atlas, {
+      colors: litColors.get(mesh),
+      pass: 'translucent',
+      indices: mesh.translucentIndices
+    })
+    if (timing) terrainMs += performance.now() - t
+  }
+
   if (timing) {
     timing.light = lightMs
     timing.terrain = terrainMs
     timing.culled = culled
   }
-
-  if (timing) t = performance.now()
-  renderEntities(bot, frame, vp, assets, { ...opts, lightFactor: factor })
-  if (timing) timing.entities = performance.now() - t
 
   return frame
 }

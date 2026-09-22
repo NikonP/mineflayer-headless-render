@@ -93,7 +93,9 @@ function makeViewProjection(
 // indices: Uint32Array, offset: world-space origin of the mesh.
 // atlas: { data: Uint8ClampedArray, width, height } (RGBA).
 function renderMesh(frame, vp, mesh, atlas, opts = {}) {
-  const { positions, uvs, indices } = mesh
+  const { positions, uvs } = mesh
+  // The capture pre-splits section indices into opaque/translucent lists.
+  const indices = opts.indices || mesh.indices
   // opts.colors overrides the mesh's own colours (used to pass lit copies of
   // cached section meshes without mutating the cache).
   const colors = opts.colors || mesh.colors
@@ -138,6 +140,11 @@ function renderMesh(frame, vp, mesh, atlas, opts = {}) {
   // Uniform brightness multiplier (used for entity lighting; world lighting is
   // passed in per-vertex via opts.colors).
   const brightness = opts.brightness !== undefined ? opts.brightness : 1
+  // Two-pass translucency: `opts.indices` already selects the opaque or
+  // blended triangles (see worldRender.splitIndices); `pass` only controls how
+  // they are shaded. 'all' is the single transparent-cutout pass used by
+  // entity meshes.
+  const pass = opts.pass || 'all'
 
   for (let t = 0; t < indices.length; t += 3) {
     const i0 = indices[t]
@@ -232,13 +239,30 @@ function renderMesh(frame, vp, mesh, atlas, opts = {}) {
         // would make later terrain fail the depth test and leave sky color)
         if (a < 0.1) continue
 
-        zbuf[zi] = z
-
         const cr = (l0 * c0r + l1 * c1r + l2 * c2r) * brightness
         const cg = (l0 * c0g + l1 * c1g + l2 * c2g) * brightness
         const cb = (l0 * c0b + l1 * c1b + l2 * c2b) * brightness
 
         const di = zi * 4
+
+        // Blended pass: depth-tested against the opaque pass, but deliberately
+        // does not write depth, so nearer translucent faces blend over farther
+        // ones instead of hiding them.
+        if (pass === 'translucent') {
+          if (a >= 0.999) {
+            pix[di] = atlasData[ti] * cr
+            pix[di + 1] = atlasData[ti + 1] * cg
+            pix[di + 2] = atlasData[ti + 2] * cb
+          } else {
+            pix[di] = atlasData[ti] * cr * a + pix[di] * (1 - a)
+            pix[di + 1] = atlasData[ti + 1] * cg * a + pix[di + 1] * (1 - a)
+            pix[di + 2] = atlasData[ti + 2] * cb * a + pix[di + 2] * (1 - a)
+          }
+          pix[di + 3] = 255
+          continue
+        }
+
+        zbuf[zi] = z
         if (a >= 0.999 || !opts.alphaBlend) {
           pix[di] = atlasData[ti] * cr
           pix[di + 1] = atlasData[ti + 1] * cg

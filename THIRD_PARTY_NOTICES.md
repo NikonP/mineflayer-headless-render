@@ -12,7 +12,8 @@ covered by this project's licence and are **not** redistributed here.
   and the upstream licence at `vendor/prismarine-viewer/LICENSE`.
 - Upstream: <https://github.com/PrismarineJS/prismarine-viewer> (v1.33.0).
 - Copyright (c) 2020 PrismarineJS.
-- `models.js` is vendored with a local patch ("remove negative-Y face culling")
+- `models.js` is vendored with local patches ("remove negative-Y face culling",
+  and waterlogged blocks rendering their water volume via an `opts` argument)
   and with an `AO_DEBUG` debug leftover stripped. `modelsBuilder.js` is
   unmodified. See the header comments in those files for details.
 - `src/entityModels.js` (Bedrock model conversion) and `src/atlas.js`

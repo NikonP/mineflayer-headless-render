@@ -52,9 +52,34 @@ function loadAtlasAndViewerAssets(version, assetsVersion) {
   return {
     atlasImage: atlas.image,
     atlasJson: atlas.json,
+    // Tile grid marking blended (translucent) tiles, so the rasteriser can
+    // split a section mesh into opaque and translucent triangles.
+    atlasTranslucent: atlas.translucent,
+    atlasTilesX: atlas.tilesX,
+    atlasTileSize: atlas.tileSize,
     blocksStates,
     assets
   }
+}
+
+// Vanilla render type lives in the client, not in the asset data, so it is not
+// available here. Blended blocks are recognised by texture name instead: only
+// textures authored with real semi-transparent pixels (no fully transparent
+// cutout) belong to the blended pass. Leaves, plants, glass, panes and doors
+// keep their alpha cutout in the opaque pass.
+function isTranslucentTexture(name) {
+  return (
+    name === 'water_still' ||
+    name === 'water_flow' ||
+    name === 'water_overlay' ||
+    name === 'ice' ||
+    name.startsWith('frosted_ice') ||
+    name === 'slime_block' ||
+    name.startsWith('honey_block') ||
+    name === 'tinted_glass' ||
+    name === 'nether_portal' ||
+    name.includes('stained_glass')
+  )
 }
 
 // Re-implementation of makeTextureAtlas without node-canvas: same tile
@@ -161,8 +186,24 @@ function buildAtlas(assets) {
     })
   }
 
+  // Translucency grid: one byte per 16px tile (all animation frames marked).
+  // Indexed `tileY * tilesX + tileX` in raster.js.
+  const tilesX = imgWidth / tileSize
+  const translucent = new Uint8Array(tilesX * (imgHeight / tileSize))
+  for (const tex of textures) {
+    if (!isTranslucentTexture(tex.name)) continue
+    const tx = tex.x / tileSize
+    const ty = tex.y / tileSize
+    for (let i = 0; i < tex.frames.length; i++) {
+      translucent[(ty + i) * tilesX + tx] = 1
+    }
+  }
+
   return {
     image: ctx,
+    translucent,
+    tilesX,
+    tileSize,
     json: {
       tileSize,
       width: imgWidth,
@@ -172,4 +213,8 @@ function buildAtlas(assets) {
   }
 }
 
-module.exports = { loadAtlasAndViewerAssets, buildAtlas }
+module.exports = {
+  loadAtlasAndViewerAssets,
+  buildAtlas,
+  isTranslucentTexture
+}

@@ -115,6 +115,24 @@ cached, and invalidated on block changes and chunk unloads.
 z-buffered, perspective-correct triangles with alpha cutout. `renderSolidMesh()`
 draws untextured triangles for the fallback boxes.
 
+### Translucency
+
+Vanilla render types are not in the asset data, so blended blocks are recognised
+by texture name (`atlas.js` `isTranslucentTexture`): water, ice, stained glass,
+slime, honey, tinted glass and nether portal. The atlas tags those tiles in a
+grid; `worldRender.splitIndices` classifies each quad by its tile centre at mesh
+time and stores separate opaque/translucent index lists on the section mesh.
+
+`renderFrame` then draws in two phases: all opaque terrain and cutouts write
+depth first (entities included), then blended sections are sorted far-to-near
+and drawn with `pass: 'translucent'`, which blends and does **not** write depth.
+Splitting at mesh time keeps the second pass cheap: only meshes that actually
+contain blended quads are visited, and only their blended triangles.
+
+Waterlogged blocks (kelp/seagrass and anything with a `waterlogged` property)
+render their water volume too (a local `vendor/prismarine-viewer/models.js`
+patch), so the water surface stays continuous around plants and sunken blocks.
+
 ## Capture is synchronous
 
 `renderFrame()` and `PovRenderer.capture()` block the event loop. Keep them off
