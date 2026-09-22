@@ -339,4 +339,51 @@ function renderSolidMesh(
   }
 }
 
-module.exports = { makeViewProjection, renderMesh, renderSolidMesh }
+// World-space clip planes from a row-major view-projection matrix. A point is
+// inside when n·p + d >= 0 for every plane. Mirrors the conditions renderMesh
+// actually applies: x/y within ±w (a triangle fully off-screen on one side is
+// dropped by the screen-bbox clamp) and w >= 0.01 (behind the near plane is
+// skipped). renderMesh has no far-plane test, so none is extracted here.
+function frustumPlanes(vp) {
+  const r0x = vp[0]
+  const r0y = vp[1]
+  const r0z = vp[2]
+  const r0w = vp[3]
+  const r1x = vp[4]
+  const r1y = vp[5]
+  const r1z = vp[6]
+  const r1w = vp[7]
+  const r3x = vp[12]
+  const r3y = vp[13]
+  const r3z = vp[14]
+  const r3w = vp[15]
+  return [
+    [r3x + r0x, r3y + r0y, r3z + r0z, r3w + r0w], // x >= -w
+    [r3x - r0x, r3y - r0y, r3z - r0z, r3w - r0w], // x <= w
+    [r3x + r1x, r3y + r1y, r3z + r1z, r3w + r1w], // y >= -w
+    [r3x - r1x, r3y - r1y, r3z - r1z, r3w - r1w], // y <= w
+    [r3x, r3y, r3z, r3w - 0.01] // w >= 0.01
+  ]
+}
+
+// True when an axis-aligned box is at least partly inside the frustum. The
+// p-vertex (the corner farthest along each plane normal) decides: if even that
+// corner is behind a plane, the whole box is outside.
+function aabbInFrustum(planes, minX, minY, minZ, maxX, maxY, maxZ) {
+  for (let i = 0; i < planes.length; i++) {
+    const p = planes[i]
+    const x = p[0] >= 0 ? maxX : minX
+    const y = p[1] >= 0 ? maxY : minY
+    const z = p[2] >= 0 ? maxZ : minZ
+    if (p[0] * x + p[1] * y + p[2] * z + p[3] < 0) return false
+  }
+  return true
+}
+
+module.exports = {
+  makeViewProjection,
+  renderMesh,
+  renderSolidMesh,
+  frustumPlanes,
+  aabbInFrustum
+}

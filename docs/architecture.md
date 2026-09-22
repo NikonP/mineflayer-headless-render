@@ -30,7 +30,7 @@ bot.world (prismarine-world / WorldSync)
 | `worldRender.js` | `MeshCache` + `renderWorld`; meshes sections around the bot. |
 | `heightmap.js` | Topmost solid block per column, used to correct sky light. |
 | `light.js` | Day/night curves, sky colour, light sampling/baking, brightness. |
-| `raster.js` | `makeViewProjection`, `renderMesh`, `renderSolidMesh`. |
+| `raster.js` | `makeViewProjection`, `renderMesh`, `renderSolidMesh`, frustum planes / AABB test. |
 | `frame.js` | Framebuffer, z-buffer and sky background. |
 | `camera.js` | First-person camera derived from bot state. |
 | `entities.js` | Entity dispatch: Bedrock model, item billboard, or fallback box. |
@@ -46,7 +46,11 @@ bot.world (prismarine-world / WorldSync)
 Sections are meshed with prismarine-viewer's `getSectionGeometry` (vendored).
 `makeViewWorld()` adapts `bot.world` (a mineflayer `WorldSync`) to the interface
 that mesher expects: it floors block positions, computes `isCube` (used for face
-culling) and attaches a biome object (used for grass/foliage tints).
+culling) and attaches a biome object (used for grass/foliage tints). The mesher
+queries each block several times, so `makeViewWorld()` memoises lookups for the
+duration of one section; the key is the block's offset from the section origin
+packed into a single integer (with a string fallback for the rare out-of-range
+query), which is cheaper than the string keys it replaced.
 
 `renderWorld()` rebuilds every section from scratch — deliberately uncached, so
 test stands that build a scene and then capture always see fresh geometry.
@@ -56,7 +60,9 @@ test stands that build a scene and then capture always see fresh geometry.
 (a multiple of 16, can be negative). Geometry is in world space, so moving the
 camera costs nothing; only sections entering/leaving the view box are meshed or
 evicted. A block change invalidates the section plus its 26 neighbours, because
-face culling and ambient occlusion read across section borders.
+face culling and ambient occlusion read across section borders. Each mesh also
+carries the world-space AABB computed at mesh time, which `renderFrame()` uses to
+frustum-cull whole sections before the light bake.
 
 ## Light
 

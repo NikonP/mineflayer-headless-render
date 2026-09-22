@@ -15,24 +15,48 @@ const { getDefaultVersion } = require('./config')
 // Adapts bot.world (WorldSync) to the shape getSectionGeometry expects.
 // Caching is per-call (reset between sections) to bound memory: the meshing
 // touches each block several times (self + 6 neighbors + 4x AO corners).
+//
+// The cache key is the block's offset from the current section origin packed
+// into one integer, which avoids the template-literal string keys that showed
+// up hot in profiling. getSectionGeometry occasionally queries NaN positions
+// (and, rarely, offsets far outside the section), so anything outside the
+// packed range falls back to a string key — the packed key must stay injective
+// or the mesher silently reads the wrong block.
 function makeViewWorld(botWorld, biomes) {
   let cache = null
+  let ox = 0
+  let oy = 0
+  let oz = 0
   return {
-    newSection() {
+    newSection(sx, sy, sz) {
       cache = new Map()
+      ox = sx
+      oy = sy
+      oz = sz
     },
     getBlock(pos) {
-      const floored = new Vec3(
-        Math.floor(pos.x),
-        Math.floor(pos.y),
-        Math.floor(pos.z)
-      )
-      const fkey = `${floored.x},${floored.y},${floored.z}`
+      const fx = Math.floor(pos.x)
+      const fy = Math.floor(pos.y)
+      const fz = Math.floor(pos.z)
+      const lx = fx - ox
+      const ly = fy - oy
+      const lz = fz - oz
+      const inRange =
+        lx >= -512 &&
+        lx < 512 &&
+        ly >= -512 &&
+        ly < 512 &&
+        lz >= -512 &&
+        lz < 512
+      const fkey = inRange
+        ? ((lx + 512) * 1024 + (ly + 512)) * 1024 + (lz + 512)
+        : 's,' + fx + ',' + fy + ',' + fz
       if (cache.has(fkey)) {
         const b = cache.get(fkey)
-        b.position = floored
+        b.position = new Vec3(fx, fy, fz)
         return b
       }
+      const floored = new Vec3(fx, fy, fz)
       const b = botWorld.getBlock(floored)
       if (!b) return null
       // Mirror viewer World.getWorld: isCube is used for face culling
@@ -56,6 +80,34 @@ function makeViewWorld(botWorld, biomes) {
       return b
     }
   }
+}
+
+// World-space AABB of a section mesh. Positions are relative to the section
+// centre (sx/sy/sz), so the offset is added while scanning. Computed once at
+// mesh time and used to cull sections outside the camera frustum.
+function computeAabb(mesh) {
+  const p = mesh.positions
+  const ox = mesh.sx
+  const oy = mesh.sy
+  const oz = mesh.sz
+  let minX = Infinity
+  let minY = Infinity
+  let minZ = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let maxZ = -Infinity
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i] + ox
+    const y = p[i + 1] + oy
+    const z = p[i + 2] + oz
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (z < minZ) minZ = z
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+    if (z > maxZ) maxZ = z
+  }
+  return [minX, minY, minZ, maxX, maxY, maxZ]
 }
 
 function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
@@ -109,7 +161,7 @@ function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
       if (!section || (section.isLoaded && section.isLoaded() === false)) {
         continue
       }
-      view.newSection()
+      view.newSection(chunkX * 16, sy, chunkZ * 16)
       let mesh = null
       try {
         const geom = getSectionGeometry(
@@ -122,6 +174,7 @@ function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
         if (geom.positions.length > 0) {
           geom.lightData = computeLightData(geom, rawSample)
           geom.normals = null // only needed for the light sampling above
+          geom.aabb = computeAabb(geom)
           mesh = geom
         }
       } catch (e) {
