@@ -27,7 +27,7 @@ const fs = require('fs')
 const path = require('path')
 const { PNG } = require('pngjs')
 const { decodeTGA } = require('./tga')
-const { getBedrockPath } = require('./config')
+const { getBedrockPath, assertBedrockReady } = require('./config')
 
 // Asset roots are resolved lazily so BEDROCK_SAMPLES_PATH / configure() can be
 // applied before the first model is built.
@@ -383,6 +383,9 @@ function getEntityModel(name, version) {
   if (!name) return null
   const key = version + ':' + name
   if (modelCache.has(key)) return modelCache.get(key)
+  // Deliberately outside the try below: a missing asset pack is a setup error,
+  // not a malformed model, and must not be swallowed into the box fallback.
+  assertBedrockReady()
   let model = null
   try {
     model = buildEntityModel(name)

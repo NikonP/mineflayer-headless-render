@@ -78,7 +78,7 @@ export class PovRenderer {
 }
 
 export interface ConfigureOptions {
-  /** Path to a bedrock-samples checkout. Default: $BEDROCK_SAMPLES_PATH or ./bedrock-samples. */
+  /** Path to a bedrock-samples checkout. Default: $BEDROCK_SAMPLES_PATH, else <package>/bedrock-samples, else ./bedrock-samples. */
   bedrockPath?: string
   /** Java version assumed when bot.version is unavailable. Default '1.21.4'. */
   defaultVersion?: string

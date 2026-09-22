@@ -24,11 +24,14 @@ is Java, and Bedrock diverges (names, animations) for no benefit here.
   because `models/mobs.json` holds the shared geometries the entity defs point at
   (player, iron golem, skull, agent, bed).
 - The pack is **not** redistributed with this project (Mojang EULA). Fetch it
-  with `scripts/setup-assets.sh`, which does a partial + sparse clone.
+  with `npx mineflayer-headless-render-setup ./bedrock-samples` (or
+  `bash scripts/setup-assets.sh` from a clone), a partial + sparse clone.
 - The renderer resolves the pack from, in order:
   1. `configure({ bedrockPath })`
   2. the `BEDROCK_SAMPLES_PATH` environment variable
-  3. `./bedrock-samples` relative to the package
+  3. `./bedrock-samples` next to the package
+  4. `./bedrock-samples` relative to the working directory (where the setup
+     command puts it)
 
 Changing the path after models were built clears the asset caches.
 

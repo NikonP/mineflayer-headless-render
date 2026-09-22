@@ -4,4 +4,5 @@ examples/out/
 test/out/
 bench/out/
 *.log
+*.tgz
 .DS_Store

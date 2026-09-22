@@ -22,10 +22,10 @@ POV frames for mineflayer bots. Software rasterizer. No GPU, no WebGL, no native
 Frames from `examples/arena.js` (superflat test world). Mobs face the camera.
 
 <p>
-  <img src="docs/images/arena-overview.png" width="49%">
-  <img src="docs/images/arena-mobs.png" width="49%">
-  <img src="docs/images/arena-blocks.png" width="49%">
-  <img src="docs/images/arena-items.png" width="49%">
+  <img src="https://raw.githubusercontent.com/NikonP/mineflayer-headless-render/main/docs/images/arena-overview.png" width="49%">
+  <img src="https://raw.githubusercontent.com/NikonP/mineflayer-headless-render/main/docs/images/arena-mobs.png" width="49%">
+  <img src="https://raw.githubusercontent.com/NikonP/mineflayer-headless-render/main/docs/images/arena-blocks.png" width="49%">
+  <img src="https://raw.githubusercontent.com/NikonP/mineflayer-headless-render/main/docs/images/arena-items.png" width="49%">
 </p>
 
 Top: overview, mobs. Bottom: block palette, dropped items.
@@ -34,6 +34,7 @@ Top: overview, mobs. Bottom: block palette, dropped items.
 
 - Node >= 18.
 - A Minecraft server. Targets Java **1.21.4**.
+- `git`, for the one-time asset fetch below.
 - Bedrock asset pack (not bundled, see below).
 
 ## Install
@@ -45,10 +46,14 @@ npm install mineflayer-headless-render
 Assets (Mojang, not MIT, not bundled):
 
 ```sh
-scripts/setup-assets.sh          # sparse checkout into ./bedrock-samples
+npx mineflayer-headless-render-setup ./bedrock-samples
 ```
 
-Lookup order: `configure({ bedrockPath })` > `BEDROCK_SAMPLES_PATH` > `./bedrock-samples`.
+That sparse-clones `bedrock-samples` into `./bedrock-samples` of the current
+directory. The renderer resolves the pack in this order: `configure({ bedrockPath })`
+> `BEDROCK_SAMPLES_PATH` > `<package>/bedrock-samples` > `./bedrock-samples`
+(relative to the working directory). So running the command in your project root
+is enough; no environment variable needed.
 
 ## Use
 
@@ -97,6 +102,9 @@ node --expose-gc bench/bench.js --cache          # per-stage frame cost
 node bench/bench-move.js                         # cost of moving chunk by chunk
 ```
 
+From a clone, the asset fetch is `bash scripts/setup-assets.sh` (the npm `bin`
+shim is what makes `npx mineflayer-headless-render-setup` work for consumers).
+
 ## Limits
 
 - Capture is synchronous. Blocks the event loop. Fine for occasional frames, not a video stream.
@@ -105,6 +113,8 @@ node bench/bench-move.js                         # cost of moving chunk by chunk
 - Variant-only mobs (tropical fish, horse, cat, ...) render one arbitrary variant.
 - Lighting approximate: day/night curve + server block light + heightmap sky fix. No smooth lighting.
 - Dropped items are camera-facing sprites, not vanilla spinning cards.
+- Bedrock assets are not bundled: without them entities fail with a setup error
+  (see [Install](#install)).
 - Code is MIT. Rendered pixels contain Mojang textures.
 
 ## How

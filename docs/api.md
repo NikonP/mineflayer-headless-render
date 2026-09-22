@@ -21,7 +21,7 @@ Overrides asset location / default version. Call it before the first render.
 
 ```js
 configure({
-  bedrockPath: '/opt/minecraft/bedrock-samples', // default: $BEDROCK_SAMPLES_PATH or ./bedrock-samples
+  bedrockPath: '/opt/minecraft/bedrock-samples', // default: $BEDROCK_SAMPLES_PATH, else the first of <package>/bedrock-samples, ./bedrock-samples that exists
   defaultVersion: '1.21.4'                        // Java version when bot.version is unavailable
 })
 ```
