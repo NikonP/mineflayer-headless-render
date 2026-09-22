@@ -50,7 +50,8 @@ nothing, and the remaining time is rasterisation and PNG encoding.
 ## Known costs
 
 - Rasterisation and PNG encoding are the floor once meshing is cached.
-- There is no frustum or occlusion culling yet; sections behind the camera are
-  still rasterised.
+- Section meshes are frustum-culled by their world-space AABB, so sections
+  entirely outside the view are skipped (light bake included). There is no
+  occlusion culling yet, only the frustum test.
 - `capture()` is synchronous and blocks the event loop. For a continuous stream,
   meshing/rasterising would need to move off-thread.
