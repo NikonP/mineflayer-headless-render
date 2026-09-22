@@ -1,6 +1,6 @@
 {
   "name": "mineflayer-headless-render",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless POV frame capture for mineflayer bots: software rasterizer, no GPU or canvas",
   "main": "index.js",
   "types": "index.d.ts",
