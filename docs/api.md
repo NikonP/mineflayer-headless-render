@@ -46,7 +46,8 @@ const frame = renderFrame(bot, { width: 640, height: 360 })
 ```
 
 If `opts.timing` is an object, it is filled with per-stage milliseconds
-(`world`, `light`, `terrain`, `entities`) plus `meshes` and `tris`.
+(`world`, `light`, `terrain`, `entities`) plus `meshes`, `tris` and `culled`
+(sections dropped by the frustum test).
 
 ## Frame
 
@@ -102,6 +103,7 @@ its duration.
 | `assetsVersion` | `bot.version` | Java asset version for blocks/items. |
 | `version` | `DEFAULT_VERSION` | Java version fallback when `bot.version` is unset. |
 | `noLight` | false | Skip the light bake (debug). |
+| `noCull` | false | Skip section frustum culling (debug). |
 | `includeSelf` | false | Render the bot's own player model. |
 | `evictMargin` | 2 | `PovRenderer` only: chunks kept cached beyond the view box. |
 

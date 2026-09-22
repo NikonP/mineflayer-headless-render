@@ -39,6 +39,8 @@ export interface CaptureOptions {
   version?: string
   /** Skip the light bake (debug: shows unlit geometry). */
   noLight?: boolean
+  /** Skip section frustum culling (debug: renders every mesh). */
+  noCull?: boolean
   /** Render the bot's own player model. Default false. */
   includeSelf?: boolean
   /** Filled with per-stage milliseconds when passed to renderFrame(). */
