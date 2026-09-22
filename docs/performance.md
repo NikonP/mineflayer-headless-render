@@ -31,6 +31,26 @@ view6, ~3,700 / ~4M at view12. Measured on the same renderer:
 Meshing is the dominant cost without a cache; with the cache it drops to almost
 nothing, and the remaining time is rasterisation and PNG encoding.
 
+## Optimisation results
+
+Measured on the local Paper 1.21.4 test server (a generated world, view6,
+`bench/bench.js --cache`, 30 frames after 5 warmup), before/after each change
+integrated on `perf/integration`:
+
+| Change | Config | Before | After |
+| --- | --- | --- | --- |
+| Section frustum culling | 640×360 view6 | 118.7 ms | 92.7 ms |
+| | 1280×720 view6 | 253.4 ms | 237.3 ms |
+| | 1280×720 view12 | 275.2 ms | 249.8 ms |
+| Packed block-lookup key | 2366-section meshing pass | 9.1 s | 6.8 s |
+
+Culling also cuts the per-face light bake from ~8.9 ms to ~2.7 ms at view6,
+because culled sections skip it too. It was verified pixel-identical to the
+unculled path (diff = 0) across several camera angles via `opts.noCull`.
+
+The packed block-lookup key is a pure CPU win inside `getSectionGeometry`; it has
+no effect on frame time once the section meshes are cached.
+
 ## Moving
 
 `bench/bench-move.js` teleports the bot one chunk at a time:
