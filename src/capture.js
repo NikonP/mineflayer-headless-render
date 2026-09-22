@@ -3,7 +3,7 @@ const { PNG } = require('pngjs')
 const jpeg = require('jpeg-js')
 const { createFrame } = require('./frame')
 const { getCameraVP } = require('./camera')
-const { renderMesh } = require('./raster')
+const { renderMesh, frustumPlanes, aabbInFrustum } = require('./raster')
 const { renderWorld } = require('./worldRender')
 const { renderEntities } = require('./entities')
 const { loadAtlasAndViewerAssets } = require('./atlas')
@@ -78,6 +78,11 @@ function renderFrame(bot, opts = {}) {
 
   const frame = createFrame(width, height, { skyColor: skyColor(timeOfDay) })
   const vp = getCameraVP(bot, width, height, opts)
+  // Cull whole sections outside the camera frustum: they cannot touch a pixel,
+  // so skip both the light bake and the triangle loop. opts.noCull disables it
+  // (used to verify culling against the unculled output).
+  const planes = opts.noCull ? null : frustumPlanes(vp)
+  let culled = 0
 
   // Light is baked into a scratch buffer per mesh (never into the cached mesh
   // itself, otherwise repeated frames would multiply the darkening). The
@@ -91,6 +96,22 @@ function renderFrame(bot, opts = {}) {
   let lightMs = 0
   let terrainMs = 0
   for (const mesh of meshes) {
+    if (
+      planes &&
+      mesh.aabb &&
+      !aabbInFrustum(
+        planes,
+        mesh.aabb[0],
+        mesh.aabb[1],
+        mesh.aabb[2],
+        mesh.aabb[3],
+        mesh.aabb[4],
+        mesh.aabb[5]
+      )
+    ) {
+      culled++
+      continue
+    }
     let colors
     if (mesh.colors && !opts.noLight) {
       if (timing) t = performance.now()
@@ -104,6 +125,7 @@ function renderFrame(bot, opts = {}) {
   if (timing) {
     timing.light = lightMs
     timing.terrain = terrainMs
+    timing.culled = culled
   }
 
   if (timing) t = performance.now()

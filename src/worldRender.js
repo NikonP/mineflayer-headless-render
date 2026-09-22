@@ -58,6 +58,34 @@ function makeViewWorld(botWorld, biomes) {
   }
 }
 
+// World-space AABB of a section mesh. Positions are relative to the section
+// centre (sx/sy/sz), so the offset is added while scanning. Computed once at
+// mesh time and used to cull sections outside the camera frustum.
+function computeAabb(mesh) {
+  const p = mesh.positions
+  const ox = mesh.sx
+  const oy = mesh.sy
+  const oz = mesh.sz
+  let minX = Infinity
+  let minY = Infinity
+  let minZ = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let maxZ = -Infinity
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i] + ox
+    const y = p[i + 1] + oy
+    const z = p[i + 2] + oz
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (z < minZ) minZ = z
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+    if (z > maxZ) maxZ = z
+  }
+  return [minX, minY, minZ, maxX, maxY, maxZ]
+}
+
 function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
   const meshes = []
   const biomes = mcData(bot.version || getDefaultVersion()).biomes
@@ -122,6 +150,7 @@ function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
         if (geom.positions.length > 0) {
           geom.lightData = computeLightData(geom, rawSample)
           geom.normals = null // only needed for the light sampling above
+          geom.aabb = computeAabb(geom)
           mesh = geom
         }
       } catch (e) {
