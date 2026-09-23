@@ -82,6 +82,71 @@ function makeViewWorld(botWorld, biomes) {
   }
 }
 
+// Blocks that hold a water volume. Vanilla renders the fluid in a waterlogged
+// cell as part of the block, so the mesher must do the same or the water
+// surface breaks around plants (kelp/seagrass) and waterlogged stairs/slabs.
+// kelp/seagrass carry no `waterlogged` property, hence the explicit names.
+const WATER_BLOCKS = new Set([
+  'kelp',
+  'kelp_plant',
+  'seagrass',
+  'tall_seagrass',
+  'bubble_column'
+])
+
+function isWaterLikeBlock(block) {
+  if (!block) return false
+  if (block.name === 'water') return true
+  if (WATER_BLOCKS.has(block.name)) return true
+  const props = block.getProperties ? block.getProperties() : null
+  return !!(props && props.waterlogged === true)
+}
+
+// Splits a section's triangle list into opaque and blended parts by classifying
+// each quad through the atlas tile grid (atlas.js). Done once at mesh time so
+// the capture's two passes do not re-scan every triangle. Returns null when the
+// atlas carries no grid (entity meshes never call this).
+function splitIndices(geom, assets) {
+  const grid = assets.atlasTranslucent
+  if (!grid) return null
+  const atlasW = assets.atlasImage.width
+  const atlasH = assets.atlasImage.height
+  const ts = assets.atlasTileSize
+  const tilesX = assets.atlasTilesX
+  const tilesY = grid.length / tilesX
+  const uvs = geom.uvs
+  const quads = Math.floor(geom.positions.length / 12)
+  const blend = new Uint8Array(quads)
+  let blended = 0
+  // Mesh vertices are quads of 4; classify by the quad centre, because a corner
+  // sits on the tile edge and would be attributed to the neighbouring tile.
+  for (let q = 0; q < quads; q++) {
+    const i = q * 8
+    const u = (uvs[i] + uvs[i + 2] + uvs[i + 4] + uvs[i + 6]) / 4
+    const v = (uvs[i + 1] + uvs[i + 3] + uvs[i + 5] + uvs[i + 7]) / 4
+    let tu = (u * atlasW) / ts
+    let tv = (v * atlasH) / ts
+    tu = tu < 0 ? 0 : tu >= tilesX ? tilesX - 1 : tu | 0
+    tv = tv < 0 ? 0 : tv >= tilesY ? tilesY - 1 : tv | 0
+    if (grid[tv * tilesX + tu] === 1) {
+      blend[q] = 1
+      blended++
+    }
+  }
+  if (blended === 0) return { opaque: geom.indices, translucent: null }
+  const idx = geom.indices
+  const opaque = []
+  const translucent = []
+  for (let t = 0; t < idx.length; t += 3) {
+    const target = blend[idx[t] >> 2] ? translucent : opaque
+    target.push(idx[t], idx[t + 1], idx[t + 2])
+  }
+  return {
+    opaque: Uint32Array.from(opaque),
+    translucent: Uint32Array.from(translucent)
+  }
+}
+
 // World-space AABB of a section mesh. Positions are relative to the section
 // centre (sx/sy/sz), so the offset is added while scanning. Computed once at
 // mesh time and used to cull sections outside the camera frustum.
@@ -112,8 +177,19 @@ function computeAabb(mesh) {
 
 function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
   const meshes = []
-  const biomes = mcData(bot.version || getDefaultVersion()).biomes
+  const mc = mcData(bot.version || getDefaultVersion())
+  const biomes = mc.biomes
   const view = makeViewWorld(bot.world, biomes)
+  // Waterlogged blocks borrow the water block's fluid texture.
+  const waterVariant =
+    assets.blocksStates.water &&
+    assets.blocksStates.water.variants &&
+    assets.blocksStates.water.variants['']
+  const mesherOpts = {
+    isWaterLike: isWaterLikeBlock,
+    waterType: mc.blocksByName.water && mc.blocksByName.water.id,
+    waterTexture: waterVariant && waterVariant.model.textures.particle
+  }
   // Raw light per quad is computed at mesh time and cached with the geometry;
   // the heightmap corrects the server's bogus sky-light zeros.
   const rawSample = makeRawSampler(bot.world, getHeightmap(bot))
@@ -169,12 +245,17 @@ function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
           sy,
           chunkZ * 16,
           view,
-          assets.blocksStates
+          assets.blocksStates,
+          mesherOpts
         )
         if (geom.positions.length > 0) {
           geom.lightData = computeLightData(geom, rawSample)
           geom.normals = null // only needed for the light sampling above
           geom.aabb = computeAabb(geom)
+          const split = splitIndices(geom, assets)
+          geom.opaqueIndices = split ? split.opaque : geom.indices
+          geom.translucentIndices = split ? split.translucent : null
+          geom.translucent = !!(split && split.translucent)
           mesh = geom
         }
       } catch (e) {
@@ -285,4 +366,4 @@ function renderWorld(bot, assets, viewDistanceChunks = 6) {
   return new MeshCache().collect(bot, assets, viewDistanceChunks)
 }
 
-module.exports = { renderWorld, MeshCache }
+module.exports = { renderWorld, MeshCache, isWaterLikeBlock }

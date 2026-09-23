@@ -1,7 +1,12 @@
 // Vendored from prismarine-viewer (https://github.com/PrismarineJS/prismarine-viewer)
-// at version 1.33.0, with the local patch "remove negative-Y face culling"
-// (commit 7d63b26) applied, and the AO_DEBUG leftover stripped. MIT licensed;
-// see THIRD_PARTY_NOTICES.md. Only getSectionGeometry and its helpers are used.
+// at version 1.33.0, with these local patches applied:
+//   1. "remove negative-Y face culling" (commit 7d63b26)
+//   2. waterlogged blocks render their water volume: getSectionGeometry takes
+//      an opts object with isWaterLike/waterType/waterTexture, and renderLiquid
+//      uses isWaterLike instead of a strict block.type match so waterlogged
+//      plants (kelp/seagrass) and stairs/slabs keep a continuous water surface.
+// The AO_DEBUG leftover is also stripped. MIT licensed; see
+// THIRD_PARTY_NOTICES.md. Only getSectionGeometry and its helpers are used.
 const { Vec3 } = require('vec3')
 
 const tints = require('minecraft-data')('1.16.2').tints
@@ -102,21 +107,25 @@ const elemFaces = {
   }
 }
 
-function getLiquidRenderHeight (world, block, type) {
-  if (!block || block.type !== type) return 1 / 9
-  if (block.metadata === 0) { // source block
+function getLiquidRenderHeight (world, block, type, isWaterLike) {
+  if (!block) return 1 / 9
+  const same = isWaterLike ? isWaterLike(block) : block.type === type
+  if (!same) return 1 / 9
+  if (block.metadata === 0) { // source block (a waterlogged block is a source)
     const blockAbove = world.getBlock(block.position.offset(0, 1, 0))
-    if (blockAbove && blockAbove.type === type) return 1
+    const aboveSame = blockAbove && (isWaterLike ? isWaterLike(blockAbove) : blockAbove.type === type)
+    if (aboveSame) return 1
     return 8 / 9
   }
   return ((block.metadata >= 8 ? 8 : 7 - block.metadata) + 1) / 9
 }
 
-function renderLiquid (world, cursor, texture, type, biome, water, attr) {
+function renderLiquid (world, cursor, texture, type, biome, water, attr, isWaterLike) {
+  const same = b => (isWaterLike ? isWaterLike(b) : b && b.type === type)
   const heights = []
   for (let z = -1; z <= 1; z++) {
     for (let x = -1; x <= 1; x++) {
-      heights.push(getLiquidRenderHeight(world, world.getBlock(cursor.offset(x, 0, z)), type))
+      heights.push(getLiquidRenderHeight(world, world.getBlock(cursor.offset(x, 0, z)), type, isWaterLike))
     }
   }
   const cornerHeights = [
@@ -132,7 +141,7 @@ function renderLiquid (world, cursor, texture, type, biome, water, attr) {
 
     const neighbor = world.getBlock(cursor.offset(...dir))
     if (!neighbor) continue
-    if (neighbor.type === type) continue
+    if (same(neighbor)) continue
     if ((neighbor.isCube && !isUp) || neighbor.material === 'plant' || neighbor.getProperties().waterlogged) continue
 
     let tint = [1, 1, 1]
@@ -366,7 +375,13 @@ function renderElement (world, cursor, element, doAO, attr, globalMatrix, global
   }
 }
 
-function getSectionGeometry (sx, sy, sz, world, blocksStates) {
+function getSectionGeometry (sx, sy, sz, world, blocksStates, opts = {}) {
+  // opts.isWaterLike/waterType/waterTexture come from the renderer: waterlogged
+  // blocks need the water volume rendered with them, which the vanilla viewer
+  // did not do.
+  const isWaterLike = opts.isWaterLike
+  const waterType = opts.waterType
+  const waterTexture = opts.waterTexture
   const attr = {
     sx: sx + 8,
     sy: sy + 8,
@@ -394,11 +409,23 @@ function getSectionGeometry (sx, sy, sz, world, blocksStates) {
           block.variant = getModelVariants(block, blocksStates)
         }
 
+        // A waterlogged block's fluid volume is emitted once, independent of
+        // how many model variants the block has.
+        if (
+          waterTexture &&
+          isWaterLike &&
+          block.name !== 'water' &&
+          block.name !== 'lava' &&
+          isWaterLike(block)
+        ) {
+          renderLiquid(world, cursor, waterTexture, waterType, biome, true, attr, isWaterLike)
+        }
+
         for (const variant of block.variant) {
           if (!variant || !variant.model) continue
 
           if (block.name === 'water') {
-            renderLiquid(world, cursor, variant.model.textures.particle, block.type, biome, true, attr)
+            renderLiquid(world, cursor, variant.model.textures.particle, block.type, biome, true, attr, isWaterLike)
           } else if (block.name === 'lava') {
             renderLiquid(world, cursor, variant.model.textures.particle, block.type, biome, false, attr)
           } else {

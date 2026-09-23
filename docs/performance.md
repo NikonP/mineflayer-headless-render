@@ -43,6 +43,14 @@ integrated on `perf/integration`:
 | | 1280×720 view6 | 253.4 ms | 237.3 ms |
 | | 1280×720 view12 | 275.2 ms | 249.8 ms |
 | Packed block-lookup key | 2366-section meshing pass | 9.1 s | 6.8 s |
+| Translucent pass (opaque + blended) | 640×360 view6 | 79.6 ms | 78.7 ms |
+| | 1280×720 view6 | 201.5 ms | 197.8 ms |
+
+The translucent pass costs nothing measurable: section meshes carry separate
+opaque/translucent index lists (split at mesh time), so a water-free scene never
+enters the second pass, and a scene with water only re-visits the affected
+sections. Light is baked once per mesh and kept for both passes in a per-mesh
+scratch buffer.
 
 Culling also cuts the per-face light bake from ~8.9 ms to ~2.7 ms at view6,
 because culled sections skip it too. It was verified pixel-identical to the
