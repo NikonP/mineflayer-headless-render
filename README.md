@@ -96,10 +96,12 @@ node examples/live.js                            # PovRenderer + tick()
 node examples/arena.js                           # mob/item/block arena (needs commands)
 
 node test/entity.js                              # offline entity render, no server
+node test/empty-section.js                       # offline empty-section / negative-Y regression
 node test/cache.js                               # cached vs uncached diff (needs server)
 
 node --expose-gc bench/bench.js --cache          # per-stage frame cost
 node bench/bench-move.js                         # cost of moving chunk by chunk
+node bench/bench-cold.js --view 6                # fresh-process first frame (one process per sample)
 ```
 
 From a clone, the asset fetch is `bash scripts/setup-assets.sh` (the npm `bin`
@@ -108,7 +110,7 @@ shim is what makes `npx mineflayer-headless-render-setup` work for consumers).
 ## Limits
 
 - Capture is synchronous. Blocks the event loop. Fine for occasional frames, not a video stream.
-- No frustum/occlusion culling. Behind-camera sections still rasterized.
+- Section meshes are frustum-culled by their world-space AABB, but there is no occlusion culling: geometry hidden behind walls is still rasterized.
 - Entities are static bind pose. No animations.
 - Variant-only mobs (tropical fish, horse, cat, ...) render one arbitrary variant.
 - Lighting approximate: day/night curve + server block light + heightmap sky fix. No smooth lighting.
@@ -119,7 +121,7 @@ shim is what makes `npx mineflayer-headless-render-setup` work for consumers).
 
 ## How
 
-`bot.world` → block mesher → section meshes (cached, world space) → per-face light into scratch → rasterizer → entities/items → PNG/JPEG. Details: [docs/architecture.md](docs/architecture.md).
+`bot.world` → block mesher → section meshes (cached, world space) → per-face light into scratch → rasterizer → entities/items → PNG/JPEG. Opaque terrain and entities draw first; blended blocks (water, ice, stained glass, slime, honey, tinted glass, nether portal) draw in a second far-to-near pass without depth writes. Details: [docs/architecture.md](docs/architecture.md).
 
 ## Credits
 

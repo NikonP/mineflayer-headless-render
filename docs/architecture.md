@@ -14,8 +14,8 @@ bot.world (prismarine-world / WorldSync)
    Heightmap ──► repairs bogus sky-light zeros
         │
         ▼
-   renderFrame(): bake light into scratch → rasterise terrain
-                  → entities / item billboards → frame (RGBA + z-buffer)
+   renderFrame(): bake light into scratch → opaque terrain → entities
+                  → blended terrain (far-to-near) → frame (RGBA + z-buffer)
         │
         ▼
    frameToPng() / frameToJpeg()
