@@ -7,6 +7,7 @@
 // Writes PNGs to test/out/ and prints diffs (cached vs uncached should be max=0).
 const fs = require('fs')
 const path = require('path')
+const assert = require('assert/strict')
 const { PNG } = require('pngjs')
 const { captureFrame } = require('..')
 const { PovRenderer } = require('..')
@@ -45,6 +46,10 @@ async function main() {
     if (err.code === 'EPIPE') return
     clearTimeout(timer)
     console.error('bot error:', err.message)
+    process.exit(1)
+  })
+  bot.on('kicked', reason => {
+    console.error('bot kicked:', reason)
     process.exit(1)
   })
 
@@ -139,6 +144,10 @@ async function main() {
       'cache_on_day2',
       pov.capture({ ...camera, timeOfDay: 6000 })
     )
+    // Several cold captures back-to-back can exceed Paper's keepalive timeout.
+    // Yield between comparison groups, while each pixel-diff pair stays on the
+    // same synchronous world snapshot.
+    await wait(100)
 
     // 2) cached at a different time of day (light must still update)
     const offNight = save(
@@ -179,6 +188,15 @@ async function main() {
       fmt(diff(onDay, onEdit)),
       '(should be > 0)'
     )
+    for (const [a, b] of [
+      [offDay, onDay],
+      [onDay, onDay2],
+      [offNight, onNight],
+      [offEdit, onEdit]
+    ])
+      assert.equal(diff(a, b).max, 0)
+    assert.ok(diff(onDay, onNight).max > 0, 'day/night must change lighting')
+    assert.ok(diff(onDay, onEdit).max > 0, 'edit must reach the renderer')
 
     pov.detach()
     bot.chat('/kill @e[type=!minecraft:player]')
