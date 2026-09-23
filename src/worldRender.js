@@ -16,20 +16,21 @@ const { getDefaultVersion } = require('./config')
 // Caching is per-call (reset between sections) to bound memory: the meshing
 // touches each block several times (self + 6 neighbors + 4x AO corners).
 //
-// The cache key is the block's offset from the current section origin packed
-// into one integer, which avoids the template-literal string keys that showed
-// up hot in profiling. getSectionGeometry occasionally queries NaN positions
-// (and, rarely, offsets far outside the section), so anything outside the
-// packed range falls back to a string key — the packed key must stay injective
-// or the mesher silently reads the wrong block.
+// Most lookups lie in the section plus a one-block halo (faces and AO). A dense
+// table avoids hashing those coordinates. Rotated models can query farther
+// away, or even NaN; keep an exact-key fallback rather than aliasing them into
+// the table. Each cached block owns its position; the mesher only reads it.
 function makeViewWorld(botWorld, biomes) {
-  let cache = null
+  const blocks = new Array(18 * 18 * 18)
+  const overflow = new Map()
+  const stateBlocks = new Map()
   let ox = 0
   let oy = 0
   let oz = 0
   return {
     newSection(sx, sy, sz) {
-      cache = new Map()
+      blocks.fill(undefined)
+      overflow.clear()
       ox = sx
       oy = sy
       oz = sz
@@ -42,20 +43,12 @@ function makeViewWorld(botWorld, biomes) {
       const ly = fy - oy
       const lz = fz - oz
       const inRange =
-        lx >= -512 &&
-        lx < 512 &&
-        ly >= -512 &&
-        ly < 512 &&
-        lz >= -512 &&
-        lz < 512
+        lx >= -1 && lx <= 16 && ly >= -1 && ly <= 16 && lz >= -1 && lz <= 16
       const fkey = inRange
-        ? ((lx + 512) * 1024 + (ly + 512)) * 1024 + (lz + 512)
+        ? ((ly + 1) * 18 + (lz + 1)) * 18 + (lx + 1)
         : 's,' + fx + ',' + fy + ',' + fz
-      if (cache.has(fkey)) {
-        const b = cache.get(fkey)
-        b.position = new Vec3(fx, fy, fz)
-        return b
-      }
+      const cached = inRange ? blocks[fkey] : overflow.get(fkey)
+      if (cached !== undefined) return cached
       const floored = new Vec3(fx, fy, fz)
       const b = botWorld.getBlock(floored)
       if (!b) return null
@@ -75,11 +68,43 @@ function makeViewWorld(botWorld, biomes) {
         const biomeId = botWorld.getBiome(floored)
         b.biome = biomes[biomeId] || biomes[1] || { name: 'plains' }
       }
-      cache.set(fkey, b)
+      // The viewer lazily fills block.variant. For Java block states the model
+      // choice is state-only (biome tint and neighbour culling happen later).
+      // Keep representatives only for this collection, so assets/world changes
+      // cannot leave stale variants behind.
+      if (b.stateId !== undefined && b.stateId !== null) {
+        const previous = stateBlocks.get(b.stateId)
+        if (previous && previous.variant !== undefined) {
+          b.variant = previous.variant
+        } else {
+          stateBlocks.set(b.stateId, b)
+        }
+      }
+      if (inRange) blocks[fkey] = b
+      else overflow.set(fkey, b)
       b.position = floored
       return b
     }
   }
+}
+
+function isEmptySection(section, mc) {
+  if (!section.isEmpty || !section.isEmpty() || !section.get) return false
+  // prismarine-chunk updates its non-air count using stateId === 0. A server
+  // section full of cave_air starts at count=0, and replacing cave_air with
+  // stone can leave that count at zero. Verify the states before skipping it.
+  const pos = { x: 0, y: 0, z: 0 }
+  for (pos.y = 0; pos.y < 16; pos.y++) {
+    for (pos.z = 0; pos.z < 16; pos.z++) {
+      for (pos.x = 0; pos.x < 16; pos.x++) {
+        const name = mc.blocksByStateId[section.get(pos)]?.name
+        if (name !== 'air' && name !== 'cave_air' && name !== 'void_air') {
+          return false
+        }
+      }
+    }
+  }
+  return true
 }
 
 // Blocks that hold a water volume. Vanilla renders the fluid in a waterlogged
@@ -240,15 +265,17 @@ function collectSections(cache, bot, assets, viewDistanceChunks, budgetMs) {
       view.newSection(chunkX * 16, sy, chunkZ * 16)
       let mesh = null
       try {
-        const geom = getSectionGeometry(
-          chunkX * 16,
-          sy,
-          chunkZ * 16,
-          view,
-          assets.blocksStates,
-          mesherOpts
-        )
-        if (geom.positions.length > 0) {
+        const geom = isEmptySection(section, mc)
+          ? null
+          : getSectionGeometry(
+              chunkX * 16,
+              sy,
+              chunkZ * 16,
+              view,
+              assets.blocksStates,
+              mesherOpts
+            )
+        if (geom && geom.positions.length > 0) {
           geom.lightData = computeLightData(geom, rawSample)
           geom.normals = null // only needed for the light sampling above
           geom.aabb = computeAabb(geom)

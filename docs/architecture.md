@@ -47,10 +47,17 @@ Sections are meshed with prismarine-viewer's `getSectionGeometry` (vendored).
 `makeViewWorld()` adapts `bot.world` (a mineflayer `WorldSync`) to the interface
 that mesher expects: it floors block positions, computes `isCube` (used for face
 culling) and attaches a biome object (used for grass/foliage tints). The mesher
-queries each block several times, so `makeViewWorld()` memoises lookups for the
-duration of one section; the key is the block's offset from the section origin
-packed into a single integer (with a string fallback for the rare out-of-range
-query), which is cheaper than the string keys it replaced.
+queries each block several times, so `makeViewWorld()` memoises lookups in an
+18×18×18 table: the section and its one-block halo. Farther/NaN queries from
+rotated models use a string-keyed overflow map. Both are cleared between
+sections, and each cached block keeps its own position. Model variant selection
+is reused by Java state ID within one collection; biome tint, neighbour culling,
+AO and light remain position-dependent.
+
+Sections reported empty are checked for air/cave_air/void_air using raw state
+IDs before skipping the mesher. The check matters: prismarine-chunk can retain a
+zero non-air count after replacing cave_air with stone. Empty results use normal
+cache entries and normal invalidation when blocks change.
 
 `renderWorld()` rebuilds every section from scratch — deliberately uncached, so
 test stands that build a scene and then capture always see fresh geometry.
