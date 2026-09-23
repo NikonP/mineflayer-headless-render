@@ -20,9 +20,13 @@ const { createBot, parseArgs, int, wait } = require('../scripts/dev-bot')
 
 function meshHash(cache) {
   const hash = crypto.createHash('sha256')
-  for (const [key, { mesh }] of cache.entries()) {
+  // Chunk arrival order varies between connections; hash section contents in
+  // canonical order without changing the order used by the renderer.
+  const entries = [...cache.entries()].sort(([a], [b]) => a.localeCompare(b))
+  for (const [key, { mesh }] of entries) {
     hash.update(key)
     if (!mesh) continue
+    hash.update(JSON.stringify([mesh.sx, mesh.sy, mesh.sz]))
     for (const field of [
       'positions',
       'uvs',
