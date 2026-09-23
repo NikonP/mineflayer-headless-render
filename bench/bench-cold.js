@@ -1,13 +1,19 @@
 // Fresh-process assets + first frame, followed by empty-cache captures of the
 // same live-world snapshot. Run each revision in a new process at the same spot.
-//   node --expose-gc bench/bench-cold.js --runs 3 --view 6 --out bench/out/cold.json
+//   node bench/bench-cold.js --view 6 --out bench/out/cold.json
 // --profile writes a CPU profile of assets and the first frame beside the JSON.
+// --runs N repeats meshing with empty caches (only run 0 has cold JIT/heightmap).
+// --reference REF checks geometry and pixels against that git revision's world
+// adapter on the same snapshot. Dependencies and raster must be unchanged.
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const inspector = require('inspector')
 const { promisify } = require('util')
 const { once } = require('events')
+const assert = require('assert/strict')
+const { execFileSync } = require('child_process')
+const Module = require('module')
 const { getAssets, renderFrame, frameToPng } = require('../src/capture')
 const { MeshCache } = require('../src/worldRender')
 const { createBot, parseArgs, int, wait } = require('../scripts/dev-bot')
@@ -39,6 +45,21 @@ function meshHash(cache) {
   return hash.digest('hex')
 }
 
+// Only the world adapter is under comparison; its dependencies and the raster
+// stay identical. Compile at its real path so relative imports resolve normally.
+function referenceCache(ref) {
+  const filename = require.resolve('../src/worldRender')
+  const source = execFileSync('git', ['show', `${ref}:src/worldRender.js`], {
+    cwd: path.join(__dirname, '..'),
+    encoding: 'utf8'
+  })
+  const mod = new Module(filename, module)
+  mod.filename = filename
+  mod.paths = module.paths
+  mod._compile(source, filename)
+  return new mod.exports.MeshCache()
+}
+
 async function main() {
   const args = parseArgs()
   const out = args.out || 'bench/out/cold.json'
@@ -52,7 +73,7 @@ async function main() {
   try {
     await once(bot, 'spawn')
     await bot.waitForChunksToLoad()
-    await wait(int(args, 'settle', 'SETTLE', 3000))
+    await wait(int(args, 'settle', 'SETTLE', 10000))
     // All captures below are synchronous: network updates cannot change the
     // world between the first frame and the empty-cache repeats.
     const options = {
@@ -81,7 +102,7 @@ async function main() {
     const start = performance.now()
     getAssets(bot.version, bot.version)
     report.assetsMs = performance.now() - start
-    for (let i = 0; i < int(args, 'runs', 'RUNS', 3); i++) {
+    for (let i = 0; i < int(args, 'runs', 'RUNS', 1); i++) {
       const cache = new MeshCache()
       const timing = {}
       const t0 = performance.now()
@@ -107,6 +128,27 @@ async function main() {
       report.runs.push(run)
       console.log(JSON.stringify(run))
       if (i === 0) fs.writeFileSync(out + '.png', png)
+    }
+    if (args.reference) {
+      const cache = referenceCache(args.reference)
+      const timing = {}
+      const frame = renderFrame(bot, { ...options, meshCache: cache, timing })
+      const geometry = meshHash(cache)
+      const pixels = crypto
+        .createHash('sha256')
+        .update(frame.data)
+        .digest('hex')
+      for (const run of report.runs) {
+        assert.equal(run.meshHash, geometry, 'geometry differs from reference')
+        assert.equal(run.frameHash, pixels, 'pixels differ from reference')
+      }
+      report.reference = {
+        ref: args.reference,
+        ...timing,
+        meshHash: geometry,
+        frameHash: pixels
+      }
+      console.log(`reference ${args.reference}: geometry and pixels identical`)
     }
     report.firstPngMs =
       report.assetsMs + report.runs[0].renderMs + report.runs[0].encodeMs
